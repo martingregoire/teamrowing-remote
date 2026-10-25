@@ -1,0 +1,13 @@
+# R8 rules for the release build; AGP combines all files in src/main/keepRules.
+
+# The Spotify App Remote SDK references classes it only uses optionally: Jackson as an alternative
+# to Gson, which this app uses, and annotations that aren't needed at runtime.
+-dontwarn com.fasterxml.jackson.**
+-dontwarn com.spotify.base.annotations.NotNull
+-dontwarn javax.annotation.Nonnull
+-dontwarn javax.annotation.Nullable
+
+# The SDK's own rules only keep a few of its classes, which isn't enough: with them alone, the
+# release build fails to find the Spotify app (CouldNotFindSpotifyApp). The SDK is small, so it's
+# kept as a whole, which also keeps its error class names readable in error messages.
+-keep class com.spotify.** { *; }

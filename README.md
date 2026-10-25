@@ -101,3 +101,13 @@ adb install -r app/build/outputs/apk/release/app-release.apk
 
 For an update, increase `versionCode` (and `versionName`) in `app/build.gradle.kts` before
 building.
+
+Debug and release builds are signed with different keys, so switching between them requires
+uninstalling the app first, which deletes its login, session choice and BPM copy (the BPM values
+come back from the display app at the next connection). On LineageOS, network access then has to
+be allowed again.
+
+R8 must not shrink or rename the Spotify App Remote SDK: with only the SDK's own rules, the
+release build can't find the Spotify app (`CouldNotFindSpotifyApp`).
+`app/src/main/keepRules/rules.keep` keeps the SDK as a whole and tells R8 to ignore the Jackson
+and annotation classes it only references optionally.
