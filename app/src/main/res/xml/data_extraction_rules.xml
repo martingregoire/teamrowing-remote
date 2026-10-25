@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?><!--
+   Backup and device transfer rules for API 31 and newer.
+   See https://developer.android.com/about/versions/12/backup-restore#xml-changes
+   for details.
+-->
+<data-extraction-rules>
+    <!-- Spotify tokens are bound to this device and must not be restored elsewhere -->
+    <cloud-backup>
+        <exclude domain="sharedpref" path="spotify_auth.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="spotify_auth.xml" />
+    </device-transfer>
+</data-extraction-rules>

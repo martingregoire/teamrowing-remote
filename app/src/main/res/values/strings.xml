@@ -1,0 +1,15 @@
+<resources>
+    <string name="app_name">Teamrowing Remote</string>
+    <string name="login_hint">Log in with your Spotify account to control Spotify on this phone.</string>
+    <string name="login_button">Log in with Spotify</string>
+    <string name="connecting">Connecting to Spotify…</string>
+    <string name="connected">Connected to Spotify</string>
+    <string name="connection_failed">Connection to Spotify failed: %1$s</string>
+    <string name="retry">Retry</string>
+    <string name="nothing_playing">Nothing is playing</string>
+    <string name="paused">Paused</string>
+    <string name="previous">Previous</string>
+    <string name="play">Play</string>
+    <string name="pause">Pause</string>
+    <string name="next">Next</string>
+</resources>

@@ -1,0 +1,80 @@
+# Teamrowing Remote
+
+An Android phone app for the trainer of a team rowing training session: a remote control for the
+Spotify app on the same phone, with big, high-contrast controls.
+
+It's the counterpart of [teamrowing-display](https://github.com/martingregoire/teamrowing-display),
+which shows the current and next track with their tempo on a tablet for the participants.
+
+## Features
+
+- Shows the current track, pushed live by the Spotify app.
+- Previous, play/pause and next.
+
+Planned: choosing a session playlist, showing the whole playlist with each track's tempo, jumping
+to a track, and syncing the tempos with the display app over Bluetooth.
+
+## How it works
+
+- The [Spotify App Remote SDK](https://developer.spotify.com/documentation/android) controls the
+  Spotify app on the same phone and pushes its player state, so no polling is needed.
+- The [Spotify Web API](https://developer.spotify.com/documentation/web-api) provides the
+  playlists. The app logs in with the Authorization Code flow with PKCE, so no client secret is
+  needed.
+- The login also grants the SDK's `app-remote-control` permission. The SDK can't ask for it
+  itself on Android 15: the Spotify app tries to open its permission dialog from the background,
+  which Android blocks.
+
+## Requirements
+
+- A Spotify Premium account and the Spotify app on the phone.
+- A Spotify app registered in the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard),
+  separate from the display app's:
+  - APIs: **Web API** and **Android**
+  - Redirect URI: `teamrowing-remote://callback`
+  - Android package `de.gregoire.teamrowingremote`, with the SHA-1 fingerprints of the debug key
+    and the release key
+- An Android phone with Android 8.0 (API 26) or newer.
+- On LineageOS with restricted network access for new apps, allow network access for the app
+  once: App info → Mobile data & Wi-Fi → Network access.
+
+## Development setup
+
+- [mise](https://mise.jdx.dev) provides the JDK (`mise.toml`) and puts the Android SDK tools on the
+  `PATH`. Run `mise install` once in the project directory.
+- [Android Studio](https://developer.android.com/studio) installs the Android SDK to `~/Android/Sdk`.
+- The Spotify App Remote SDK is only distributed as an AAR on
+  [GitHub](https://github.com/spotify/android-sdk/releases) and is included in `app/libs`.
+- The Spotify client ID goes into `~/.gradle/gradle.properties`, outside the repository:
+
+  ```properties
+  teamrowingRemote.spotifyClientId=<client ID from the Spotify dashboard>
+  ```
+
+The Spotify app isn't available on the emulator, so the app is developed against a real phone,
+e.g. connected with wireless debugging. Build and install a debug version:
+
+```sh
+./gradlew installDebug
+```
+
+Get the debug key's SHA-1 fingerprint for the Spotify dashboard with:
+
+```sh
+keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android | grep SHA1
+```
+
+## Release build
+
+Release builds are signed with the same key as the display app, configured in
+`~/.gradle/gradle.properties` as described in the display app's README
+(`teamrowingDisplay.releaseKeystore`, `teamrowingDisplay.releaseKeystorePassword`,
+`teamrowingDisplay.releaseKeyAlias`). Without it, Gradle builds an unsigned APK.
+
+```sh
+./gradlew assembleRelease
+adb install -r app/build/outputs/apk/release/app-release.apk
+```
+
+For an update, increase `versionCode` (and `versionName`) in `app/build.gradle.kts` before
+building.

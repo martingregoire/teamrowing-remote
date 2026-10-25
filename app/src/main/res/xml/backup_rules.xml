@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?><!--
+   Backup rules for devices up to API 30.
+   See https://developer.android.com/guide/topics/data/autobackup
+   for details.
+-->
+<full-backup-content>
+    <!-- Spotify tokens are bound to this device and must not be restored elsewhere -->
+    <exclude domain="sharedpref" path="spotify_auth.xml" />
+</full-backup-content>
