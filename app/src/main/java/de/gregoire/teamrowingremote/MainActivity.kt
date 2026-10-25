@@ -1,6 +1,8 @@
 package de.gregoire.teamrowingremote
 
+import android.Manifest
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
 import android.view.WindowManager
@@ -8,6 +10,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts.RequestPermission
 import androidx.activity.viewModels
 import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.foundation.background
@@ -59,14 +62,24 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import de.gregoire.teamrowingremote.bpm.BpmEntry
+import de.gregoire.teamrowingremote.bpm.formatBpm
 import de.gregoire.teamrowingremote.spotify.Playlist
 import de.gregoire.teamrowingremote.spotify.Track
+import de.gregoire.teamrowingremote.sync.SyncStatus
+import de.gregoire.teamrowingremote.sync.hasBluetoothPermission
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 private val Background = Color.Black
 private val PrimaryText = Color.White
@@ -79,6 +92,9 @@ class MainActivity : ComponentActivity() {
 
     private val viewModel: RemoteViewModel by viewModels()
 
+    // The sync client checks the permission itself and starts once it's granted
+    private val requestBluetoothPermission = registerForActivityResult(RequestPermission()) {}
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -86,6 +102,7 @@ class MainActivity : ComponentActivity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         // Only on first creation, so a configuration change doesn't replay the login redirect
         if (savedInstanceState == null) handleIntent(intent)
+        startBluetoothSync(askForPermission = savedInstanceState == null)
         setContent {
             val state = viewModel.state
             if (!state.loggedIn) {
@@ -106,8 +123,12 @@ class MainActivity : ComponentActivity() {
                     onBack = if (state.session != null) ({ choosingPlaylist = false }) else null,
                 )
             } else {
+                val bpmEntries by viewModel.bpmEntries.collectAsStateWithLifecycle()
+                val syncStatus by viewModel.syncStatus.collectAsStateWithLifecycle()
                 RemoteScreen(
                     state = state,
+                    bpmEntries = bpmEntries,
+                    syncStatus = syncStatus,
                     onRetry = { viewModel.connect(this) },
                     onPrevious = viewModel::skipPrevious,
                     onPlayPause = viewModel::togglePlayPause,
@@ -129,6 +150,16 @@ class MainActivity : ComponentActivity() {
     override fun onStop() {
         super.onStop()
         viewModel.disconnect()
+    }
+
+    /** Syncs the tempos with the display app over Bluetooth while the app is visible. */
+    private fun startBluetoothSync(askForPermission: Boolean) {
+        if (askForPermission && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !hasBluetoothPermission(this)) {
+            requestBluetoothPermission.launch(Manifest.permission.BLUETOOTH_CONNECT)
+        }
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) { viewModel.runSync() }
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -171,6 +202,8 @@ fun LoginScreen(error: String?, onLogin: () -> Unit) {
 @Composable
 fun RemoteScreen(
     state: RemoteState,
+    bpmEntries: Map<String, BpmEntry>,
+    syncStatus: SyncStatus,
     onRetry: () -> Unit,
     onPrevious: () -> Unit,
     onPlayPause: () -> Unit,
@@ -198,15 +231,28 @@ fun RemoteScreen(
 
         val nowPlaying = state.nowPlaying
         if (nowPlaying != null) {
-            Text(
-                nowPlaying.title,
-                color = PrimaryText,
-                fontSize = 32.sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(nowPlaying.artists, color = SecondaryText, fontSize = 22.sp, maxLines = 1)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        nowPlaying.title,
+                        color = PrimaryText,
+                        fontSize = 32.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(nowPlaying.artists, color = SecondaryText, fontSize = 22.sp, maxLines = 1)
+                }
+                tempoText(bpmEntries[nowPlaying.uri])?.let {
+                    Text(
+                        it,
+                        color = Accent,
+                        fontSize = 56.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(start = 16.dp),
+                    )
+                }
+            }
         } else {
             Text(stringResource(R.string.nothing_playing), color = SecondaryText, fontSize = 24.sp)
         }
@@ -242,6 +288,7 @@ fun RemoteScreen(
                 Text(stringResource(R.string.change_session), color = Accent, fontSize = 18.sp)
             }
         }
+        Text(stringResource(syncStatus.label), color = SecondaryText, fontSize = 14.sp)
         state.error?.let { Text(it, color = ErrorColor) }
 
         val tracks = state.sessionTracks
@@ -274,6 +321,7 @@ fun RemoteScreen(
                     TrackRow(
                         number = index + 1,
                         track = track,
+                        tempo = tempoText(bpmEntries[track.uri]),
                         isCurrent = index == currentIndex,
                         onClick = { onPlayTrack(index) },
                     )
@@ -357,7 +405,7 @@ private suspend fun LazyListState.scrollToCenter(index: Int) {
 }
 
 @Composable
-private fun TrackRow(number: Int, track: Track, isCurrent: Boolean, onClick: () -> Unit) {
+private fun TrackRow(number: Int, track: Track, tempo: String?, isCurrent: Boolean, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -383,9 +431,37 @@ private fun TrackRow(number: Int, track: Track, isCurrent: Boolean, onClick: () 
             )
             Text(track.artists, color = SecondaryText, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        Text(formatDuration(track.durationMs), color = SecondaryText, fontSize = 16.sp)
+        Text(
+            tempo.orEmpty(),
+            color = if (isCurrent) Accent else PrimaryText,
+            fontSize = 22.sp,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.End,
+            modifier = Modifier.width(52.dp),
+        )
+        Text(
+            formatDuration(track.durationMs),
+            color = SecondaryText,
+            fontSize = 16.sp,
+            textAlign = TextAlign.End,
+            modifier = Modifier.width(56.dp),
+        )
     }
 }
+
+/** The tempo to show for a track: none for "No tempo" tracks, "–" if unknown. */
+private fun tempoText(entry: BpmEntry?): String? = when {
+    entry?.hidden == true -> null
+    else -> entry?.bpm?.let(::formatBpm) ?: "–"
+}
+
+private val SyncStatus.label: Int
+    get() = when (this) {
+        SyncStatus.NO_PERMISSION -> R.string.sync_no_permission
+        SyncStatus.BLUETOOTH_OFF -> R.string.sync_bluetooth_off
+        SyncStatus.SEARCHING -> R.string.sync_searching
+        SyncStatus.CONNECTED -> R.string.sync_connected
+    }
 
 /** The user's playlists to choose the training session from. */
 @Composable
@@ -482,6 +558,12 @@ fun RemoteScreenPreview() {
             session = Playlist("1", "TR 28.10.2026", tracks.size),
             sessionTracks = tracks,
         ),
+        bpmEntries = mapOf(
+            "spotify:track:1" to BpmEntry(91.1, manualBpm = 23.0),
+            "spotify:track:2" to BpmEntry(88.5, manualBpm = 22.0),
+            "spotify:track:3" to BpmEntry(hidden = true),
+        ),
+        syncStatus = SyncStatus.CONNECTED,
         onRetry = {},
         onPrevious = {},
         onPlayPause = {},

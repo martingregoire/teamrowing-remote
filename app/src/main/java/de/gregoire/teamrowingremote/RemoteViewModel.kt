@@ -10,14 +10,19 @@ import androidx.compose.runtime.setValue
 import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import de.gregoire.teamrowingremote.bpm.BpmEntry
+import de.gregoire.teamrowingremote.bpm.BpmStore
 import de.gregoire.teamrowingremote.spotify.PLAYLIST_URI_PREFIX
 import de.gregoire.teamrowingremote.spotify.Playlist
 import de.gregoire.teamrowingremote.spotify.SpotifyApi
 import de.gregoire.teamrowingremote.spotify.SpotifyAuth
 import de.gregoire.teamrowingremote.spotify.SpotifyRemote
 import de.gregoire.teamrowingremote.spotify.Track
+import de.gregoire.teamrowingremote.sync.BluetoothSyncClient
+import de.gregoire.teamrowingremote.sync.SyncStatus
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import org.json.JSONException
 import java.io.IOException
@@ -60,6 +65,12 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
     private val auth = SpotifyAuth(application)
     private val api = SpotifyApi(auth)
     private val prefs = application.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    private val bpmStore = BpmStore(application)
+    private val syncClient = BluetoothSyncClient(application, bpmStore)
+
+    /** Tempo per track URI, synced from the display app. */
+    val bpmEntries: StateFlow<Map<String, BpmEntry>> = bpmStore.entries
+    val syncStatus: StateFlow<SyncStatus> = syncClient.status
 
     var state by mutableStateOf(RemoteState(loggedIn = auth.isLoggedIn, session = loadSession()))
         private set
@@ -69,8 +80,12 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
     private var sessionJob: Job? = null
 
     init {
+        viewModelScope.launch { bpmStore.load() }
         if (state.loggedIn) loadPlaylistsAndSession()
     }
+
+    /** Syncs the tempos with the display app over Bluetooth until cancelled, e.g. while the app is visible. */
+    suspend fun runSync() = syncClient.run()
 
     fun createAuthorizeUri(): Uri = auth.createAuthorizeUri()
 

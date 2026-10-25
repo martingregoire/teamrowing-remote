@@ -12,6 +12,10 @@
     <string name="pause">Pause</string>
     <string name="next">Next</string>
     <string name="back">Back</string>
+    <string name="sync_no_permission">Display sync: no Bluetooth permission</string>
+    <string name="sync_bluetooth_off">Display sync: Bluetooth is off</string>
+    <string name="sync_searching">Display: not connected</string>
+    <string name="sync_connected">Display: connected</string>
     <string name="change_session">Change</string>
     <string name="choose_session">Choose session</string>
     <string name="no_playlists">No playlists found.</string>

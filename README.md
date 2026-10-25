@@ -12,13 +12,18 @@ which shows the current and next track with their tempo on a tablet for the part
   next, and a progress bar to seek within the track.
 - **Sessions:** each of the trainer's own Spotify playlists is a training session. The chosen
   session is remembered, and a playlist started in the Spotify app is picked up automatically.
-- **Session list:** all tracks of the session with their duration, the current one highlighted
-  and kept in the middle of the list; it scrolls back to it 8 seconds after scrolling by hand.
+- **Tempo:** each track's tempo (strokes per minute) next to the current track and in the session
+  list, as prepared in the display app. Tracks marked "No tempo" show none, unknown ones "–".
+- **Session list:** all tracks of the session with their tempo and duration, the current one
+  highlighted and kept in the middle of the list; it scrolls back to it 8 seconds after scrolling
+  by hand.
   Tapping a track plays the session from there, in playlist order (shuffle is turned off). Play
   starts the session from the beginning if something else was playing.
+- **Sync with the display app:** the tempos come from
+  [teamrowing-display](https://github.com/martingregoire/teamrowing-display) on the tablet, over
+  Bluetooth while both apps are open. The phone keeps a copy, which it sends back on each connection,
+  so it can restore the tablet's data. The connection status is shown below the session name.
 - The screen stays on while the app is open.
-
-Planned: each track's tempo, synced with the display app over Bluetooth.
 
 ## How it works
 
@@ -27,6 +32,10 @@ Planned: each track's tempo, synced with the display app over Bluetooth.
 - The [Spotify Web API](https://developer.spotify.com/documentation/web-api) provides the
   playlists. The app logs in with the Authorization Code flow with PKCE, so no client secret is
   needed.
+- The tempos are synced with the display app over Bluetooth (RFCOMM): the remote connects to the
+  display app on a paired computer, tablet or phone, starting with the last connected one, and
+  retries every 10 seconds. The protocol and the BPM entry format (`sync/BpmSyncSession.kt`,
+  `bpm/BpmEntry.kt`) are kept identical in both apps; see the display app's README.
 - The login also grants the SDK's `app-remote-control` permission. The SDK can't ask for it
   itself on Android 15: the Spotify app tries to open its permission dialog from the background,
   which Android blocks.
@@ -41,6 +50,8 @@ Planned: each track's tempo, synced with the display app over Bluetooth.
   - Android package `de.gregoire.teamrowingremote`, with the SHA-1 fingerprints of the debug key
     and the release key
 - An Android phone with Android 8.0 (API 26) or newer.
+- For the tempos: the phone paired with the display tablet in Android's Bluetooth settings, and the
+  "Nearby devices" permission allowed when the app asks for it.
 - On LineageOS with restricted network access for new apps, allow network access for the app
   once: App info → Mobile data & Wi-Fi → Network access.
 
