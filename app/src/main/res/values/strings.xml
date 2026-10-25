@@ -12,6 +12,11 @@
     <string name="pause">Pause</string>
     <string name="next">Next</string>
     <string name="back">Back</string>
+    <string name="no_tempo">No tempo</string>
+    <string name="reset_tempo">Reset to detected</string>
+    <string name="save">Save</string>
+    <string name="detected_tempo">Detected: %1$s</string>
+    <string name="not_detected">No tempo detected</string>
     <string name="sync_no_permission">Display sync: no Bluetooth permission</string>
     <string name="sync_bluetooth_off">Display sync: Bluetooth is off</string>
     <string name="sync_searching">Display: not connected</string>

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.TeamrowingRemote" parent="android:Theme.Material.Light.NoActionBar" />
+    <!-- Dark, like the app itself, also for windows like the tempo editor's bottom sheet -->
+    <style name="Theme.TeamrowingRemote" parent="android:Theme.Material.NoActionBar" />
 </resources>

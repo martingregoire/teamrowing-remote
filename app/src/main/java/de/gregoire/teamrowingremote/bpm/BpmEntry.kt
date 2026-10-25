@@ -2,6 +2,7 @@ package de.gregoire.teamrowingremote.bpm
 
 import org.json.JSONObject
 import java.text.DecimalFormat
+import kotlin.math.roundToLong
 
 // Kept identical in teamrowing-display and teamrowing-remote, which sync these entries over Bluetooth.
 
@@ -23,6 +24,15 @@ data class BpmEntry(
 ) {
     val bpm: Double?
         get() = manualBpm ?: detectedBpm
+
+    /** With the trainer's value; null, or the detected value itself, removes the correction. */
+    fun withManualBpm(bpm: Double?): BpmEntry = copy(manualBpm = bpm?.takeIf { it != detectedBpm })
+
+    /** With the current value changed by [adjust] and rounded to whole strokes, e.g. ×2 or +1. */
+    fun adjusted(adjust: (Double) -> Double): BpmEntry {
+        val bpm = bpm ?: return this
+        return withManualBpm(adjust(bpm).roundToLong().coerceAtLeast(1).toDouble())
+    }
 
     /**
      * Combines this entry with the same track's entry from another device: a detected BPM is taken

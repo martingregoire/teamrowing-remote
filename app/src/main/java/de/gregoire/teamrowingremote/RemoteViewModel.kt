@@ -204,6 +204,11 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    /** Saves the trainer's tempo correction, which is synced to the display app. */
+    fun saveTempo(uri: String, manualBpm: Double?, hidden: Boolean) {
+        viewModelScope.launch { bpmStore.saveEdit(uri, manualBpm, hidden) }
+    }
+
     fun seekTo(positionMs: Long) {
         remote?.seekTo(positionMs)
     }

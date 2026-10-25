@@ -2,11 +2,13 @@ package de.gregoire.teamrowingremote
 
 import android.Manifest
 import android.content.Intent
+import android.graphics.Color as AndroidColor
 import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -16,9 +18,11 @@ import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -97,7 +101,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        // Light system bar icons on the black app, whatever the device's theme
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(AndroidColor.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(AndroidColor.TRANSPARENT),
+        )
         // The trainer keeps the remote open during the whole training session
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         // Only on first creation, so a configuration change doesn't replay the login redirect
@@ -136,6 +144,7 @@ class MainActivity : ComponentActivity() {
                     onPlayTrack = viewModel::playSessionTrack,
                     onSeek = viewModel::seekTo,
                     onChangeSession = { choosingPlaylist = true },
+                    onSaveTempo = viewModel::saveTempo,
                 )
             }
         }
@@ -211,7 +220,21 @@ fun RemoteScreen(
     onPlayTrack: (Int) -> Unit,
     onSeek: (Long) -> Unit,
     onChangeSession: () -> Unit,
+    onSaveTempo: (uri: String, manualBpm: Double?, hidden: Boolean) -> Unit,
 ) {
+    var editing by remember { mutableStateOf<Track?>(null) }
+    editing?.let { track ->
+        TempoEditorSheet(
+            track = track,
+            entry = bpmEntries[track.uri],
+            onSave = { manualBpm, hidden ->
+                onSaveTempo(track.uri, manualBpm, hidden)
+                editing = null
+            },
+            onDismiss = { editing = null },
+        )
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -243,14 +266,17 @@ fun RemoteScreen(
                     )
                     Text(nowPlaying.artists, color = SecondaryText, fontSize = 22.sp, maxLines = 1)
                 }
-                tempoText(bpmEntries[nowPlaying.uri])?.let {
-                    Text(
-                        it,
-                        color = Accent,
-                        fontSize = 56.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(start = 16.dp),
-                    )
+                // Tapping the tempo edits it, also for "No tempo" tracks, where it's empty
+                Box(
+                    modifier = Modifier
+                        .padding(start = 16.dp)
+                        .defaultMinSize(minWidth = 64.dp, minHeight = 64.dp)
+                        .clickable { editing = Track(nowPlaying.uri, nowPlaying.title, nowPlaying.artists, nowPlaying.durationMs) },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    tempoText(bpmEntries[nowPlaying.uri])?.let {
+                        Text(it, color = Accent, fontSize = 56.sp, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         } else {
@@ -324,6 +350,7 @@ fun RemoteScreen(
                         tempo = tempoText(bpmEntries[track.uri]),
                         isCurrent = index == currentIndex,
                         onClick = { onPlayTrack(index) },
+                        onTempoClick = { editing = track },
                     )
                 }
             }
@@ -405,7 +432,14 @@ private suspend fun LazyListState.scrollToCenter(index: Int) {
 }
 
 @Composable
-private fun TrackRow(number: Int, track: Track, tempo: String?, isCurrent: Boolean, onClick: () -> Unit) {
+private fun TrackRow(
+    number: Int,
+    track: Track,
+    tempo: String?,
+    isCurrent: Boolean,
+    onClick: () -> Unit,
+    onTempoClick: () -> Unit,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -431,14 +465,20 @@ private fun TrackRow(number: Int, track: Track, tempo: String?, isCurrent: Boole
             )
             Text(track.artists, color = SecondaryText, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        Text(
-            tempo.orEmpty(),
-            color = if (isCurrent) Accent else PrimaryText,
-            fontSize = 22.sp,
-            fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.End,
-            modifier = Modifier.width(52.dp),
-        )
+        // A separate touch target: tapping the row plays the track, tapping the tempo edits it
+        Box(
+            modifier = Modifier
+                .size(width = 64.dp, height = 48.dp)
+                .clickable(onClick = onTempoClick),
+            contentAlignment = Alignment.CenterEnd,
+        ) {
+            Text(
+                tempo.orEmpty(),
+                color = if (isCurrent) Accent else PrimaryText,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+            )
+        }
         Text(
             formatDuration(track.durationMs),
             color = SecondaryText,
@@ -571,5 +611,6 @@ fun RemoteScreenPreview() {
         onPlayTrack = {},
         onSeek = {},
         onChangeSession = {},
+        onSaveTempo = { _, _, _ -> },
     )
 }

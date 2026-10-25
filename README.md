@@ -14,6 +14,9 @@ which shows the current and next track with their tempo on a tablet for the part
   session is remembered, and a playlist started in the Spotify app is picked up automatically.
 - **Tempo:** each track's tempo (strokes per minute) next to the current track and in the session
   list, as prepared in the display app. Tracks marked "No tempo" show none, unknown ones "–".
+- **Tempo correction:** tapping a tempo opens a bottom sheet to type a new value, step it by ±1,
+  mark the track as "No tempo", or reset it to the detected value. Corrections are synced to the
+  display app, right away or at the next connection. BPM lookups only happen in the display app.
 - **Session list:** all tracks of the session with their tempo and duration, the current one
   highlighted and kept in the middle of the list; it scrolls back to it 8 seconds after scrolling
   by hand.
