@@ -8,11 +8,17 @@ which shows the current and next track with their tempo on a tablet for the part
 
 ## Features
 
-- Shows the current track, pushed live by the Spotify app.
-- Previous, play/pause and next.
+- **Controls:** the current track, pushed live by the Spotify app, with previous, play/pause and
+  next, and a progress bar to seek within the track.
+- **Sessions:** each of the trainer's own Spotify playlists is a training session. The chosen
+  session is remembered, and a playlist started in the Spotify app is picked up automatically.
+- **Session list:** all tracks of the session with their duration, the current one highlighted
+  and kept in the middle of the list; it scrolls back to it 8 seconds after scrolling by hand.
+  Tapping a track plays the session from there, in playlist order (shuffle is turned off). Play
+  starts the session from the beginning if something else was playing.
+- The screen stays on while the app is open.
 
-Planned: choosing a session playlist, showing the whole playlist with each track's tempo, jumping
-to a track, and syncing the tempos with the display app over Bluetooth.
+Planned: each track's tempo, synced with the display app over Bluetooth.
 
 ## How it works
 

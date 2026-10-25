@@ -3,6 +3,7 @@ package de.gregoire.teamrowingremote
 import android.content.Intent
 import android.os.Bundle
 import android.os.SystemClock
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -81,6 +82,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        // The trainer keeps the remote open during the whole training session
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         // Only on first creation, so a configuration change doesn't replay the login redirect
         if (savedInstanceState == null) handleIntent(intent)
         setContent {
