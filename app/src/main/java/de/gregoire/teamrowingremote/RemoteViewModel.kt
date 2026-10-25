@@ -131,7 +131,10 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
     fun loadPlaylists() {
         viewModelScope.launch {
             try {
-                state = state.copy(playlists = api.getPlaylists(), error = null)
+                // Fetch first: state.copy(playlists = api.getPlaylists()) would copy the state from before
+                // the request and undo changes made meanwhile, such as the loaded session tracks
+                val playlists = api.getPlaylists()
+                state = state.copy(playlists = playlists, error = null)
                 // A playlist may have been started in Spotify before the playlists were loaded
                 state.contextUri?.let(::onContextChanged)
             } catch (e: IOException) {
@@ -193,7 +196,8 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
         sessionJob?.cancel()
         sessionJob = viewModelScope.launch {
             try {
-                state = state.copy(sessionTracks = api.getPlaylistTracks(playlist.id), error = null)
+                val tracks = api.getPlaylistTracks(playlist.id)
+                state = state.copy(sessionTracks = tracks, error = null)
             } catch (e: IOException) {
                 state = state.copy(error = e.message)
             } catch (e: JSONException) {
