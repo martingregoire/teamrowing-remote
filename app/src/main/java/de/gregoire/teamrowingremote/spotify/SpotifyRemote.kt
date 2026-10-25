@@ -30,8 +30,21 @@ class SpotifyRemote private constructor(private val appRemote: SpotifyAppRemote)
         awaitClose { subscription.cancel() }
     }
 
-    fun play(uri: String) {
-        appRemote.playerApi.play(uri)
+    /** What is being played, e.g. `spotify:playlist:…`, pushed by the Spotify app on every change. */
+    fun playerContextUris(): Flow<String> = callbackFlow {
+        val subscription = appRemote.playerApi.subscribeToPlayerContext()
+            .setEventCallback { trySend(it.uri) }
+            .setErrorCallback { close(it) }
+        awaitClose { subscription.cancel() }
+    }
+
+    /** Plays the playlist or album [uri] from the track at [index]. */
+    fun skipToIndex(uri: String, index: Int) {
+        appRemote.playerApi.skipToIndex(uri, index)
+    }
+
+    fun setShuffle(enabled: Boolean) {
+        appRemote.playerApi.setShuffle(enabled)
     }
 
     fun pause() {
@@ -40,6 +53,10 @@ class SpotifyRemote private constructor(private val appRemote: SpotifyAppRemote)
 
     fun resume() {
         appRemote.playerApi.resume()
+    }
+
+    fun seekTo(positionMs: Long) {
+        appRemote.playerApi.seekTo(positionMs)
     }
 
     fun skipNext() {
