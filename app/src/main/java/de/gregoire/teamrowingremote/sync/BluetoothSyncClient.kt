@@ -34,11 +34,15 @@ fun hasBluetoothPermission(context: Context): Boolean =
         context.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
 
 /**
- * Connects to the display app on a paired device and syncs BPM entries with it. Only paired
+ * Connects to the display app on a paired device, syncs BPM entries with it and sends it the playback state. Only paired
  * computers, tablets and phones are tried, starting with the last connected one, so headphones or
  * car systems aren't contacted.
  */
-class BluetoothSyncClient(private val context: Context, private val store: BpmSyncStore) {
+class BluetoothSyncClient(
+    private val context: Context,
+    private val store: BpmSyncStore,
+    private val playbackPeer: PlaybackSyncPeer,
+) {
 
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
@@ -74,7 +78,7 @@ class BluetoothSyncClient(private val context: Context, private val store: BpmSy
     /** Syncs with [device] until the connection ends; returns false if the display app isn't reachable there. */
     @SuppressLint("MissingPermission") // Checked by hasBluetoothPermission() before
     private suspend fun syncWith(device: BluetoothDevice): Boolean = coroutineScope {
-        val socket = device.createRfcommSocketToServiceRecord(BpmSyncProtocol.SERVICE_UUID)
+        val socket = device.createRfcommSocketToServiceRecord(SyncProtocol.SERVICE_UUID)
         val closer = launch { closeOnCancellation(socket) }
         try {
             socket.connect()
@@ -86,7 +90,7 @@ class BluetoothSyncClient(private val context: Context, private val store: BpmSy
         prefs.edit { putString(KEY_LAST_ADDRESS, device.address) }
         _status.value = SyncStatus.CONNECTED
         try {
-            BpmSyncSession(socket, store).run()
+            SyncSession(socket, store, playbackPeer).run()
             Log.i(TAG, "Disconnected from ${device.name}")
         } catch (e: IOException) {
             Log.i(TAG, "Connection to ${device.name} lost", e)

@@ -23,6 +23,8 @@ which shows the current and next track with their tempo on a tablet for the part
   [teamrowing-display](https://github.com/martingregoire/teamrowing-display) on the tablet, over
   Bluetooth while both apps are open. The phone keeps a copy, which it sends back on each connection,
   so it can restore the tablet's data. The connection status is shown below the session name.
+- **Instant display updates:** while connected, the phone sends every track change, pause and seek
+  to the display app, which shows it right away instead of at its next poll.
 - The screen stays on while the app is open.
 
 ## How it works
@@ -34,8 +36,9 @@ which shows the current and next track with their tempo on a tablet for the part
   needed.
 - The tempos are synced with the display app over Bluetooth (RFCOMM): the remote connects to the
   display app on a paired computer, tablet or phone, starting with the last connected one, and
-  retries every 10 seconds. The protocol and the BPM entry format (`sync/BpmSyncSession.kt`,
-  `bpm/BpmEntry.kt`) are kept identical in both apps; see the display app's README.
+  retries every 10 seconds. It also sends the SDK's playback state on every change. The protocol
+  and the BPM entry format (`sync/SyncSession.kt`, `bpm/BpmEntry.kt`) are kept identical in both
+  apps; see the display app's README.
 - The login also grants the SDK's `app-remote-control` permission. The SDK can't ask for it
   itself on Android 15: the Spotify app tries to open its permission dialog from the background,
   which Android blocks.

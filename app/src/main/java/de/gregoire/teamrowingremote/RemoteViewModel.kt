@@ -19,10 +19,15 @@ import de.gregoire.teamrowingremote.spotify.SpotifyAuth
 import de.gregoire.teamrowingremote.spotify.SpotifyRemote
 import de.gregoire.teamrowingremote.spotify.Track
 import de.gregoire.teamrowingremote.sync.BluetoothSyncClient
+import de.gregoire.teamrowingremote.sync.PlaybackSyncPeer
+import de.gregoire.teamrowingremote.sync.PlaybackUpdate
 import de.gregoire.teamrowingremote.sync.SyncStatus
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 import org.json.JSONException
 import java.io.IOException
@@ -66,7 +71,15 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
     private val api = SpotifyApi(auth)
     private val prefs = application.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     private val bpmStore = BpmStore(application)
-    private val syncClient = BluetoothSyncClient(application, bpmStore)
+
+    /** The playback state for the display app, which shows track changes instantly with it. */
+    private val playbackUpdates = MutableStateFlow<PlaybackUpdate?>(null)
+    private val playbackPeer = object : PlaybackSyncPeer {
+        override val outgoing: Flow<PlaybackUpdate> = playbackUpdates.filterNotNull()
+
+        override fun received(update: PlaybackUpdate) = Unit
+    }
+    private val syncClient = BluetoothSyncClient(application, bpmStore, playbackPeer)
 
     /** Tempo per track URI, synced from the display app. */
     val bpmEntries: StateFlow<Map<String, BpmEntry>> = bpmStore.entries
@@ -128,6 +141,7 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
                         positionMs = playerState.playbackPosition,
                         positionUpdatedAt = SystemClock.elapsedRealtime(),
                     )
+                    publishPlayback()
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -221,9 +235,24 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    private fun publishPlayback() {
+        val nowPlaying = state.nowPlaying
+        playbackUpdates.value = PlaybackUpdate(
+            trackUri = nowPlaying?.uri,
+            title = nowPlaying?.title.orEmpty(),
+            artists = nowPlaying?.artists.orEmpty(),
+            durationMs = nowPlaying?.durationMs ?: 0,
+            positionMs = state.positionMs,
+            isPaused = state.isPaused,
+            contextUri = state.contextUri,
+            positionAt = state.positionUpdatedAt,
+        )
+    }
+
     /** Follows a playlist started in the Spotify app, if it's one of the user's playlists. */
     private fun onContextChanged(contextUri: String) {
         state = state.copy(contextUri = contextUri.takeIf { it.isNotEmpty() })
+        publishPlayback()
         if (!contextUri.startsWith(PLAYLIST_URI_PREFIX) || contextUri == state.session?.uri) return
         state.playlists?.firstOrNull { it.uri == contextUri }?.let(::selectSession)
     }
