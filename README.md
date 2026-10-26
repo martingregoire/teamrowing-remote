@@ -6,6 +6,8 @@ Spotify app on the same phone, with big, high-contrast controls.
 It's the counterpart of [teamrowing-display](https://github.com/martingregoire/teamrowing-display),
 which shows the current and next track with their tempo on a tablet for the participants.
 
+<img src="docs/screenshot.png" width="300" alt="The remote app showing the current track with its tempo, the controls and the session list">
+
 ## Features
 
 - **Controls:** the current track, pushed live by the Spotify app, with previous, play/pause and
