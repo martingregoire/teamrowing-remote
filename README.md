@@ -122,3 +122,11 @@ R8 must not shrink or rename the Spotify App Remote SDK: with only the SDK's own
 release build can't find the Spotify app (`CouldNotFindSpotifyApp`).
 `app/src/main/keepRules/rules.keep` keeps the SDK as a whole and tells R8 to ignore the Jackson
 and annotation classes it only references optionally.
+
+## License
+
+Licensed under the [Apache License 2.0](LICENSE).
+
+The Spotify App Remote SDK in `app/libs` is by Spotify AB, from
+[spotify/android-sdk](https://github.com/spotify/android-sdk), also under the Apache License 2.0
+([license](app/libs/spotify-app-remote-LICENSE), [notice](app/libs/spotify-app-remote-NOTICE)).
