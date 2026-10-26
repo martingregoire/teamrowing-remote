@@ -49,20 +49,29 @@ which shows the current and next track with their tempo on a tablet for the part
 ## Requirements
 
 - A Spotify Premium account and the Spotify app on the phone.
-- A Spotify app registered in the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard),
-  separate from the display app's:
-  - APIs: **Web API** and **Android**
-  - Redirect URI: `teamrowing-remote://callback`
-  - Android package `de.gregoire.teamrowingremote`, with the SHA-1 fingerprints of the debug key
-    and the release key
 - An Android phone with Android 8.0 (API 26) or newer.
-- For the tempos: the phone paired with the display tablet in Android's Bluetooth settings, and the
-  "Nearby devices" permission allowed when the app asks for it.
+- The app isn't published: whoever builds it (see [Development setup](#development-setup)) must
+  add the trainer's Spotify account to their Spotify app in the Developer Dashboard. In
+  Development Mode, up to 5 Spotify users can be added there.
+- For the tempos: [teamrowing-display](https://github.com/martingregoire/teamrowing-display) on a
+  tablet, and Bluetooth on both devices. Without it, the app still controls Spotify, but shows no
+  tempos.
+
+## Setup
+
+- For the tempos: pair the phone with the display tablet once in Android's Bluetooth settings, and
+  allow the "Nearby devices" permission when the app asks for it.
 - On LineageOS with restricted network access for new apps, allow network access for the app
   once: App info → Mobile data & Wi-Fi → Network access.
 
 ## Development setup
 
+- A Spotify app registered in the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard),
+  separate from the display app's, with each trainer's Spotify account added as a user:
+  - APIs: **Web API** and **Android**
+  - Redirect URI: `teamrowing-remote://callback`
+  - Android package `de.gregoire.teamrowingremote`, with the SHA-1 fingerprints of the debug key
+    and the release key
 - [mise](https://mise.jdx.dev) provides the JDK (`mise.toml`) and puts the Android SDK tools on the
   `PATH`. Run `mise install` once in the project directory.
 - [Android Studio](https://developer.android.com/studio) installs the Android SDK to `~/Android/Sdk`.
