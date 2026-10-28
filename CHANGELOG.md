@@ -7,6 +7,10 @@ All notable changes to this app are documented in this file. The format is based
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-10-28
+
+It works with teamrowing-display 1.0.0 and later.
+
 ### Changed
 
 - An own launcher icon: a play button in front of the tempo, in place of the default Android
@@ -48,6 +52,7 @@ The first version. It works with teamrowing-display 1.0.0.
 - Playback changes are sent to the display app over Bluetooth, so it shows them right away.
 - The screen stays on while the app is open.
 
-[Unreleased]: https://github.com/martingregoire/teamrowing-remote/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/martingregoire/teamrowing-remote/compare/v1.1.1...HEAD
+[1.1.1]: https://github.com/martingregoire/teamrowing-remote/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/martingregoire/teamrowing-remote/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/martingregoire/teamrowing-remote/releases/tag/v1.0.0
