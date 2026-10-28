@@ -7,6 +7,7 @@ import android.os.SystemClock
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -21,12 +22,18 @@ import de.gregoire.teamrowingremote.spotify.Track
 import de.gregoire.teamrowingremote.sync.BluetoothSyncClient
 import de.gregoire.teamrowingremote.sync.PlaybackSyncPeer
 import de.gregoire.teamrowingremote.sync.PlaybackUpdate
+import de.gregoire.teamrowingremote.sync.QueueUpdate
 import de.gregoire.teamrowingremote.sync.SyncStatus
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 import org.json.JSONException
@@ -74,10 +81,17 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
 
     /** The playback state for the display app, which shows track changes instantly with it. */
     private val playbackUpdates = MutableStateFlow<PlaybackUpdate?>(null)
+
+    /** Spotify's queue for the display app, which may not have internet access to fetch it. */
+    private val queueUpdates = MutableStateFlow<QueueUpdate?>(null)
     private val playbackPeer = object : PlaybackSyncPeer {
         override val outgoing: Flow<PlaybackUpdate> = playbackUpdates.filterNotNull()
 
+        override val outgoingQueues: Flow<QueueUpdate> = queueUpdates.filterNotNull()
+
         override fun received(update: PlaybackUpdate) = Unit
+
+        override fun receivedQueue(update: QueueUpdate) = Unit
     }
     private val syncClient = BluetoothSyncClient(application, bpmStore, playbackPeer)
 
@@ -97,8 +111,14 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
         if (state.loggedIn) loadPlaylistsAndSession()
     }
 
-    /** Syncs the tempos with the display app over Bluetooth until cancelled, e.g. while the app is visible. */
-    suspend fun runSync() = syncClient.run()
+    /**
+     * Syncs the tempos with the display app over Bluetooth until cancelled, e.g. while the app is visible,
+     * and sends it the playback state and Spotify's queue.
+     */
+    suspend fun runSync() = coroutineScope {
+        launch { pollQueue() }
+        syncClient.run()
+    }
 
     fun createAuthorizeUri(): Uri = auth.createAuthorizeUri()
 
@@ -254,6 +274,51 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
         )
     }
 
+    /**
+     * Fetches Spotify's queue while the display app is connected: when the track, what is being played or
+     * the session's tracks change, and every [QUEUE_REFRESH_MS] to catch manual changes.
+     */
+    private suspend fun pollQueue() {
+        val playing = snapshotFlow { Triple(state.nowPlaying?.uri, state.contextUri, state.sessionTracks) }
+        combine(syncClient.status, playing) { status, current -> current.takeIf { status == SyncStatus.CONNECTED } }
+            .distinctUntilChanged()
+            .collectLatest { playing ->
+                val trackUri = playing?.first ?: return@collectLatest
+                var staleAttempts = 0
+                while (true) {
+                    val delayMs = try {
+                        val queue = api.getQueue()
+                        // Right after a track change, Spotify may still report the queue of the previous track
+                        if (queue.currentlyPlaying?.uri == trackUri || ++staleAttempts > MAX_STALE_QUEUE_ATTEMPTS) {
+                            queueUpdates.value = QueueUpdate(trackUri, withoutAutoplay(queue.upcoming))
+                            staleAttempts = 0
+                            QUEUE_REFRESH_MS
+                        } else {
+                            STALE_QUEUE_RETRY_MS
+                        }
+                    } catch (e: IOException) {
+                        QUEUE_RETRY_MS
+                    } catch (e: JSONException) {
+                        QUEUE_RETRY_MS
+                    }
+                    delay(delayMs)
+                }
+            }
+    }
+
+    /**
+     * The upcoming tracks up to the end of the session playlist, without Spotify's autoplay tracks after it.
+     * Autoplay may report no or a different context, so only playing something else ends the session.
+     */
+    private fun withoutAutoplay(upcoming: List<Track>): List<Track> {
+        val session = state.session ?: return upcoming
+        val sessionTrackUris = state.sessionTracks?.map { it.uri }?.toSet() ?: return upcoming
+        val contextUri = state.contextUri
+        val playsOther = contextUri != null && contextUri != session.uri &&
+            (OTHER_CONTEXT_PREFIXES.any { contextUri.startsWith(it) } || contextUri.endsWith(":collection"))
+        return if (playsOther) upcoming else upcoming.takeWhile { it.uri in sessionTrackUris }
+    }
+
     /** Follows a playlist started in the Spotify app, if it's one of the user's playlists. */
     private fun onContextChanged(contextUri: String) {
         state = state.copy(contextUri = contextUri.takeIf { it.isNotEmpty() })
@@ -278,5 +343,10 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
         const val PREFS_NAME = "remote"
         const val KEY_SESSION_ID = "session_id"
         const val KEY_SESSION_NAME = "session_name"
+        const val QUEUE_REFRESH_MS = 15_000L
+        const val STALE_QUEUE_RETRY_MS = 500L
+        const val MAX_STALE_QUEUE_ATTEMPTS = 6
+        const val QUEUE_RETRY_MS = 5_000L
+        val OTHER_CONTEXT_PREFIXES = listOf(PLAYLIST_URI_PREFIX, "spotify:album:", "spotify:artist:", "spotify:show:")
     }
 }

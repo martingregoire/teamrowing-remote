@@ -29,7 +29,9 @@ which shows the current and next track with their tempo on a tablet for the part
   Bluetooth while both apps are open. The phone keeps a copy, which it sends back on each connection,
   so it can restore the tablet's data. The connection status is shown below the session name.
 - **Instant display updates:** while connected, the phone sends every track change, pause and seek
-  to the display app, which shows it right away instead of at its next poll.
+  to the display app, which shows it right away instead of at its next poll. It also sends
+  Spotify's queue, without the autoplay tracks after the session, so the tablet shows the next
+  track without internet access.
 - The screen stays on while the app is open.
 
 ## How it works
@@ -37,11 +39,12 @@ which shows the current and next track with their tempo on a tablet for the part
 - The [Spotify App Remote SDK](https://developer.spotify.com/documentation/android) controls the
   Spotify app on the same phone and pushes its player state, so no polling is needed.
 - The [Spotify Web API](https://developer.spotify.com/documentation/web-api) provides the
-  playlists. The app logs in with the Authorization Code flow with PKCE, so no client secret is
+  playlists, and the queue for the display app, which the SDK doesn't provide. The app logs in with the Authorization Code flow with PKCE, so no client secret is
   needed.
 - The tempos are synced with the display app over Bluetooth (RFCOMM): the remote connects to the
   display app on a paired computer, tablet or phone, starting with the last connected one, and
-  retries every 10 seconds. It also sends the SDK's playback state on every change. The protocol
+  retries every 10 seconds. It also sends the SDK's playback state on every change, and the queue
+  when the track changes and every 15 seconds. The protocol
   and the BPM entry format (`sync/SyncSession.kt`, `bpm/BpmEntry.kt`) are kept identical in both
   apps; see the display app's README.
 - The login also grants the SDK's `app-remote-control` permission. The SDK can't ask for it
