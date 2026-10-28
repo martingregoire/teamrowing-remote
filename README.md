@@ -110,8 +110,8 @@ Release builds are signed with the same key as the display app, configured in
 adb install -r app/build/outputs/apk/release/app-release.apk
 ```
 
-For an update, increase `versionCode` (and `versionName`) in `app/build.gradle.kts` before
-building.
+Build updates from a release tag (see [Releasing](#releasing)), whose version Android accepts as
+newer than the installed one.
 
 Debug and release builds are signed with different keys, so switching between them requires
 uninstalling the app first, which deletes its login, session choice and BPM copy (the BPM values
@@ -122,6 +122,15 @@ R8 must not shrink or rename the Spotify App Remote SDK: with only the SDK's own
 release build can't find the Spotify app (`CouldNotFindSpotifyApp`).
 `app/src/main/keepRules/rules.keep` keeps the SDK as a whole and tells R8 to ignore the Jackson
 and annotation classes it only references optionally.
+
+## Releasing
+
+Releases work as in the display app, described in its README's
+[Releasing](https://github.com/martingregoire/teamrowing-display#releasing) section: the changes are
+listed in [CHANGELOG.md](CHANGELOG.md), each release is a tag like `v1.2.3` from which Gradle takes
+`versionName` and `versionCode`, and the [release workflow](.github/workflows/release.yml)
+creates a GitHub release with the version's changelog section as release notes, without an APK.
+The changelog notes which version of the display app a version needs.
 
 ## License
 

@@ -12,6 +12,15 @@ val spotifyClientId = providers.gradleProperty("teamrowingRemote.spotifyClientId
 val releaseKeystore = providers.gradleProperty("teamrowingDisplay.releaseKeystore").orNull
     ?.replaceFirst("~", System.getProperty("user.home"))
 
+// The version comes from the latest release tag (v1.2.3), see "Releasing" in the README. Builds after
+// the tag get the number of commits since then and the commit as suffix, e.g. 1.2.3-4-gabc1234.
+val gitVersion = providers.exec {
+    commandLine("git", "describe", "--tags", "--match", "v[0-9]*", "--dirty")
+    isIgnoreExitValue = true
+}.standardOutput.asText.get().trim().removePrefix("v").ifEmpty { "0.0.0" }
+val (versionMajor, versionMinor, versionPatch) =
+    gitVersion.substringBefore("-").split(".").map(String::toInt)
+
 android {
     namespace = "de.gregoire.teamrowingremote"
     compileSdk {
@@ -22,8 +31,9 @@ android {
         applicationId = "de.gregoire.teamrowingremote"
         minSdk = 26
         targetSdk = 37
-        versionCode = 1
-        versionName = "1.0"
+        // Minor and patch stay below 100, so the version code grows with every release
+        versionCode = versionMajor * 10000 + versionMinor * 100 + versionPatch
+        versionName = gitVersion
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

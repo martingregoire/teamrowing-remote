@@ -1,0 +1,41 @@
+# Creates a GitHub release for each pushed version tag (v1.2.3), with the version's section of
+# CHANGELOG.md as release notes. No APK is attached: it only works with the Spotify app of whoever
+# built it, see the README.
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Extract the release notes from the changelog
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Tag $GITHUB_REF_NAME isn't a version like v1.2.3"
+            exit 1
+          fi
+          # The lines between "## [<version>]" and the next "## [" heading, without the link
+          # definitions at the end of the file
+          awk -v heading="## [$version]" '
+            /^## \[/ { if (found) exit; found = index($0, heading) == 1; next }
+            found && !/^\[[^]]+\]: /
+          ' CHANGELOG.md > release-notes.md
+          if ! grep -q '[^[:space:]]' release-notes.md; then
+            echo "::error::CHANGELOG.md has no section for $version"
+            exit 1
+          fi
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file release-notes.md --verify-tag
