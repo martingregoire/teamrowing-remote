@@ -7,6 +7,11 @@ All notable changes to this app are documented in this file. The format is based
 
 ## [Unreleased]
 
+### Added
+
+- Sends Spotify's queue to the display app, without the autoplay tracks after the session, so it
+  shows the next track without internet access on the tablet. Older display apps ignore it.
+
 ### Changed
 
 - The app's version comes from the release tag, and builds after a release show the number of

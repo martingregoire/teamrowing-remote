@@ -23,6 +23,11 @@ data class Playlist(
         get() = PLAYLIST_URI_PREFIX + id
 }
 
+data class PlaybackQueue(
+    val currentlyPlaying: Track?,
+    val upcoming: List<Track>,
+)
+
 const val PLAYLIST_URI_PREFIX = "spotify:playlist:"
 
 class SpotifyApiException(
@@ -47,6 +52,15 @@ class SpotifyApi(private val auth: SpotifyAuth) {
                     trackCount = it.optJSONObject("items")?.optInt("total") ?: 0,
                 )
             }
+    }
+
+    /** The current track and the upcoming tracks, which the App Remote SDK doesn't provide. */
+    suspend fun getQueue(): PlaybackQueue {
+        val json = get("/me/player/queue") ?: return PlaybackQueue(null, emptyList())
+        return PlaybackQueue(
+            currentlyPlaying = json.optJSONObject("currently_playing")?.toTrack(),
+            upcoming = json.optJSONArray("queue")?.objects()?.map { it.toTrack() }.orEmpty(),
+        )
     }
 
     suspend fun getPlaylistTracks(playlistId: String): List<Track> =

@@ -5,6 +5,7 @@ import android.os.SystemClock
 import de.gregoire.teamrowingremote.bpm.BpmEntry
 import de.gregoire.teamrowingremote.bpm.bpmEntriesFromJson
 import de.gregoire.teamrowingremote.bpm.bpmEntriesToJson
+import de.gregoire.teamrowingremote.spotify.Track
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.awaitCancellation
@@ -14,6 +15,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
 import java.io.BufferedWriter
@@ -51,17 +53,34 @@ data class PlaybackUpdate(
         if (isPaused) positionMs else (positionMs + SystemClock.elapsedRealtime() - positionAt).coerceAtMost(durationMs)
 }
 
-/** Playback updates a sync session sends to or receives from the other app. */
+/**
+ * Spotify's queue, which the remote app fetches for the display app, so it can show the next track
+ * without an internet connection.
+ */
+data class QueueUpdate(
+    /** The track the queue follows. */
+    val trackUri: String,
+    /** The tracks after it, up to the end of the session playlist: Spotify's autoplay tracks are left out. */
+    val upcoming: List<Track>,
+)
+
+/** Playback and queue updates a sync session sends to or receives from the other app. */
 interface PlaybackSyncPeer {
     /** Updates to send; only the remote app has any. */
     val outgoing: Flow<PlaybackUpdate>
 
+    /** Queue updates to send; only the remote app has any. */
+    val outgoingQueues: Flow<QueueUpdate>
+
     fun received(update: PlaybackUpdate)
+
+    fun receivedQueue(update: QueueUpdate)
 }
 
 sealed interface SyncMessage {
     data class Entries(val entries: Map<String, BpmEntry>) : SyncMessage
     data class Playback(val update: PlaybackUpdate) : SyncMessage
+    data class Queue(val update: QueueUpdate) : SyncMessage
 }
 
 object SyncProtocol {
@@ -71,14 +90,16 @@ object SyncProtocol {
     const val VERSION = 1
 
     /**
-     * One message per line, either `{"version":1,"entries":{<track URI>:{…}}}` or
-     * `{"version":1,"playback":{…}}`. Apps that don't know a message type ignore it.
+     * One message per line, either `{"version":1,"entries":{<track URI>:{…}}}`,
+     * `{"version":1,"playback":{…}}` or `{"version":1,"queue":{…}}`. Apps that don't know a message
+     * type ignore it.
      */
     fun encode(message: SyncMessage): String {
         val json = JSONObject().put("version", VERSION)
         when (message) {
             is SyncMessage.Entries -> json.put("entries", bpmEntriesToJson(message.entries))
             is SyncMessage.Playback -> json.put("playback", playbackToJson(message.update))
+            is SyncMessage.Queue -> json.put("queue", queueToJson(message.update))
         }
         return json.toString()
     }
@@ -90,6 +111,7 @@ object SyncProtocol {
             json.optInt("version") != VERSION -> null
             json.has("entries") -> SyncMessage.Entries(bpmEntriesFromJson(json.getJSONObject("entries")))
             json.has("playback") -> SyncMessage.Playback(playbackFromJson(json.getJSONObject("playback")))
+            json.has("queue") -> SyncMessage.Queue(queueFromJson(json.getJSONObject("queue")))
             else -> null
         }
     } catch (e: JSONException) {
@@ -116,6 +138,38 @@ object SyncProtocol {
         isPaused = json.optBoolean("isPaused", true),
         contextUri = json.optString("contextUri").takeIf { it.isNotEmpty() },
     )
+
+    private fun queueToJson(update: QueueUpdate): JSONObject {
+        val upcoming = JSONArray()
+        for (track in update.upcoming) {
+            upcoming.put(
+                JSONObject()
+                    .put("uri", track.uri)
+                    .put("title", track.title)
+                    .put("artists", track.artists)
+                    .put("durationMs", track.durationMs)
+                    .putOpt("isrc", track.isrc),
+            )
+        }
+        return JSONObject().put("trackUri", update.trackUri).put("upcoming", upcoming)
+    }
+
+    private fun queueFromJson(json: JSONObject): QueueUpdate {
+        val upcoming = json.getJSONArray("upcoming")
+        return QueueUpdate(
+            trackUri = json.getString("trackUri"),
+            upcoming = (0 until upcoming.length()).map { index ->
+                val track = upcoming.getJSONObject(index)
+                Track(
+                    uri = track.getString("uri"),
+                    title = track.optString("title"),
+                    artists = track.optString("artists"),
+                    durationMs = track.optLong("durationMs"),
+                    isrc = track.optString("isrc").takeIf { it.isNotEmpty() },
+                )
+            },
+        )
+    }
 }
 
 /** Suspends until cancelled, then closes [closeable], e.g. to interrupt a blocking socket call elsewhere. */
@@ -129,7 +183,7 @@ suspend fun closeOnCancellation(closeable: Closeable) {
 
 /**
  * Syncs over a connected socket: both sides first send all their BPM entries, then each local
- * change as it happens; the remote app also sends each playback change. Returns when the other side
+ * change as it happens; the remote app also sends each playback change and Spotify's queue. Returns when the other side
  * disconnects; throws IOException on errors.
  */
 class SyncSession(
@@ -152,6 +206,9 @@ class SyncSession(
         val playbackSender = launch {
             playback.outgoing.collect { send(writer, SyncMessage.Playback(it)) }
         }
+        val queueSender = launch {
+            playback.outgoingQueues.collect { send(writer, SyncMessage.Queue(it)) }
+        }
         send(writer, SyncMessage.Entries(store.snapshot()))
 
         withContext(Dispatchers.IO) {
@@ -161,6 +218,7 @@ class SyncSession(
                 when (val message = SyncProtocol.decode(line)) {
                     is SyncMessage.Entries -> store.merge(message.entries)
                     is SyncMessage.Playback -> playback.received(message.update)
+                    is SyncMessage.Queue -> playback.receivedQueue(message.update)
                     null -> Unit
                 }
             }
@@ -168,6 +226,7 @@ class SyncSession(
         // The other side disconnected
         entriesSender.cancel()
         playbackSender.cancel()
+        queueSender.cancel()
         closer.cancel()
     }
 
