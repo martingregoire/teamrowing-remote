@@ -7,6 +7,11 @@ All notable changes to this app are documented in this file. The format is based
 
 ## [Unreleased]
 
+### Changed
+
+- An own launcher icon: a play button in front of the tempo, in place of the default Android
+  icon.
+
 ## [1.1.0] - 2026-10-28
 
 It works with teamrowing-display 1.0.0 and later. The next track without internet access on the tablet
