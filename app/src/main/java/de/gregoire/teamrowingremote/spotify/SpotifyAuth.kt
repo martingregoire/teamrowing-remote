@@ -168,7 +168,7 @@ class SpotifyAuth(context: Context) {
         // app-remote-control grants the App Remote SDK access up front: Android 15 blocks the SDK's own
         // permission dialog, which the Spotify app tries to open from the background
         const val SCOPES = "app-remote-control user-read-playback-state user-modify-playback-state " +
-            "playlist-read-private playlist-read-collaborative"
+            "playlist-read-private playlist-read-collaborative playlist-modify-private playlist-modify-public"
         const val EXPIRY_MARGIN_MS = 60_000L
     }
 }

@@ -28,4 +28,75 @@
         <item quantity="one">%d track</item>
         <item quantity="other">%d tracks</item>
     </plurals>
+    <string name="prepare">Prepare</string>
+    <string name="prepare_title">Prepare session</string>
+    <string name="new_session">New</string>
+    <string name="new_session_title">New session</string>
+    <string name="new_session_hint">Creates a private Spotify playlist. Sessions are named \"TR\" and their date, so the app can tell them from other playlists.</string>
+    <string name="create">Create</string>
+    <string name="cancel">Cancel</string>
+    <string name="session_length">%1$s of %2$s</string>
+    <string name="length_too_long">%1$s too long</string>
+    <string name="length_too_short">%1$s too short</string>
+    <plurals name="tracks_with_issues">
+        <item quantity="one">%d track breaks a rule</item>
+        <item quantity="other">%d tracks break a rule</item>
+    </plurals>
+    <plurals name="tracks_not_prepared">
+        <item quantity="one">%d without tempo</item>
+        <item quantity="other">%d without tempo</item>
+    </plurals>
+    <plurals name="tracks_in_last_session">
+        <item quantity="one">%1$d from the last session (%2$s)</item>
+        <item quantity="other">%1$d from the last session (%2$s)</item>
+    </plurals>
+    <string name="no_issues">All tracks follow the rules</string>
+    <string name="loading_history">Loading the past sessions…</string>
+    <string name="section_warm_up">Warm-up</string>
+    <string name="section_main">Main part</string>
+    <string name="section_cool_down">Cool-down</string>
+    <string name="issue_not_prepared">No rowing tempo yet</string>
+    <string name="issue_not_prepared_suggested">No rowing tempo yet, song %1$s BPM, maybe %2$s</string>
+    <string name="issue_too_slow">Slower than easy (%1$d)</string>
+    <string name="issue_hard_in_warm_up">Hard in the warm-up</string>
+    <string name="issue_hard_in_cool_down">Hard in the cool-down</string>
+    <string name="issue_hard_after_hard">Two hard tracks in a row</string>
+    <string name="issue_large_step">Step of %1$s from the previous track</string>
+    <string name="issue_repeated">More than once in this session</string>
+    <string name="hint_in_last_session">In the last session</string>
+    <string name="hint_last_used">Last used: %1$s</string>
+    <string name="hint_never_used">Not used yet</string>
+    <string name="hint_in_session">In this session</string>
+    <string name="move_up">Move up</string>
+    <string name="move_down">Move down</string>
+    <string name="remove">Remove</string>
+    <string name="edit_tempo">Tempo</string>
+    <string name="add_tracks">Add tracks</string>
+    <string name="add">Add</string>
+    <string name="empty_session">This session has no tracks yet. Add some from the fundus.</string>
+    <string name="settings">Settings</string>
+    <string name="template_title">Session rules</string>
+    <string name="template_length">Length (min)</string>
+    <string name="template_tolerance">Tolerance (± min)</string>
+    <string name="template_warm_up">Warm-up (min)</string>
+    <string name="template_cool_down">Cool-down (min)</string>
+    <string name="template_easy_from">Easy from (spm)</string>
+    <string name="template_hard_from">Hard from (spm)</string>
+    <string name="template_max_step">Largest step (spm)</string>
+    <string name="template_reset">Reset to defaults</string>
+    <string name="fundus_title">Add tracks</string>
+    <string name="fundus_choose">Fundus playlists</string>
+    <string name="fundus_none">Choose one or more playlists as the fundus to add tracks from.</string>
+    <string name="fundus_no_playlists">No other playlists found. Create fundus playlists in Spotify, e.g. \"Fundus easy\".</string>
+    <plurals name="fundus_count">
+        <item quantity="one">%d track</item>
+        <item quantity="other">%d tracks</item>
+    </plurals>
+    <string name="filter_all">All</string>
+    <string name="filter_easy">Easy</string>
+    <string name="filter_hard">Hard</string>
+    <string name="filter_not_prepared">Without tempo</string>
+    <string name="filter_hide_last_session">Hide last session</string>
+    <string name="sort_tempo">By tempo</string>
+    <string name="sort_unused">Unused longest</string>
 </resources>

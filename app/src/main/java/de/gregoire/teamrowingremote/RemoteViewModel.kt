@@ -13,6 +13,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import de.gregoire.teamrowingremote.bpm.BpmEntry
 import de.gregoire.teamrowingremote.bpm.BpmStore
+import de.gregoire.teamrowingremote.prepare.SessionPreparation
 import de.gregoire.teamrowingremote.spotify.PLAYLIST_URI_PREFIX
 import de.gregoire.teamrowingremote.spotify.Playlist
 import de.gregoire.teamrowingremote.spotify.SpotifyApi
@@ -36,6 +37,8 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.json.JSONException
 import java.io.IOException
 
@@ -101,6 +104,12 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
 
     var state by mutableStateOf(RemoteState(loggedIn = auth.isLoggedIn, session = loadSession()))
         private set
+
+    /** Checking sessions and putting them together from the fundus. */
+    val preparation = SessionPreparation(application, api, bpmStore, viewModelScope)
+
+    /** One change of the session playlist at a time, so they reach Spotify in the order they were made. */
+    private val sessionEditMutex = Mutex()
 
     private var remote: SpotifyRemote? = null
     private var connectJob: Job? = null
@@ -221,6 +230,52 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
             !state.isPaused -> remote.pause()
             state.session != null && state.contextUri != state.session?.uri -> playSessionTrack(0)
             else -> remote.resume()
+        }
+    }
+
+    /** Creates a session playlist named [name] and selects it. */
+    fun createSession(name: String) = editSession {
+        val playlist = api.createPlaylist(name)
+        state = state.copy(playlists = state.playlists?.let { listOf(playlist) + it })
+        selectSession(playlist)
+    }
+
+    /** Adds [track] at the end of the session. */
+    fun addToSession(track: Track) = editSession {
+        val session = state.session ?: return@editSession
+        api.addToPlaylist(session.id, listOf(track.uri))
+        state = state.copy(sessionTracks = state.sessionTracks.orEmpty() + track)
+    }
+
+    /** Moves the session's track at [from] to [to]. */
+    fun moveInSession(from: Int, to: Int) = editSession {
+        val session = state.session ?: return@editSession
+        val tracks = state.sessionTracks ?: return@editSession
+        if (to !in tracks.indices) return@editSession
+        api.moveInPlaylist(session.id, from, to)
+        state = state.copy(sessionTracks = tracks.toMutableList().apply { add(to, removeAt(from)) })
+    }
+
+    /** Removes the track [uri] from the session; Spotify removes all of its occurrences. */
+    fun removeFromSession(uri: String) = editSession {
+        val session = state.session ?: return@editSession
+        api.removeFromPlaylist(session.id, uri)
+        state = state.copy(sessionTracks = state.sessionTracks?.filter { it.uri != uri })
+    }
+
+    /** Runs a change of the session playlist after the previous ones, showing errors. */
+    private fun editSession(edit: suspend () -> Unit) {
+        viewModelScope.launch {
+            sessionEditMutex.withLock {
+                try {
+                    edit()
+                    state = state.copy(error = null)
+                } catch (e: IOException) {
+                    state = state.copy(error = e.message)
+                } catch (e: JSONException) {
+                    state = state.copy(error = e.message)
+                }
+            }
         }
     }
 

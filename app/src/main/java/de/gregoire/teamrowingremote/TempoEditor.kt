@@ -43,6 +43,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import de.gregoire.teamrowingremote.bpm.BpmEntry
 import de.gregoire.teamrowingremote.bpm.formatBpm
+import de.gregoire.teamrowingremote.prepare.RowingTempo
+import de.gregoire.teamrowingremote.prepare.rowingTempo
+import de.gregoire.teamrowingremote.prepare.suggestedTempo
 import de.gregoire.teamrowingremote.spotify.Track
 import kotlin.math.roundToLong
 
@@ -53,7 +56,8 @@ private val Accent = Color(0xFFFFC107)
 
 /**
  * Bottom sheet to correct a track's tempo: a number, ±1, "No tempo" and reset to the detected
- * value. Changes are only saved with the save button or the keyboard's done key.
+ * value. Changes are only saved with the save button or the keyboard's done key. A track not prepared
+ * yet starts with a rowing tempo suggested from the song's BPM.
  */
 @OptIn(ExperimentalMaterial3Api::class) // ModalBottomSheet is still experimental in Material 3
 @Composable
@@ -63,7 +67,11 @@ fun TempoEditorSheet(
     onSave: (manualBpm: Double?, hidden: Boolean) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var text by remember { mutableStateOf(entry?.bpm?.let(::formatBpm).orEmpty()) }
+    var text by remember {
+        val tempo = rowingTempo(entry)
+        val initial = if (tempo is RowingTempo.NotPrepared) tempo.detectedBpm?.let { suggestedTempo(it).roundToLong().toDouble() } else entry?.bpm
+        mutableStateOf(initial?.let(::formatBpm).orEmpty())
+    }
     var hidden by remember { mutableStateOf(entry?.hidden == true) }
     val parsed = text.replace(',', '.').toDoubleOrNull()
     val valid = text.isBlank() || (parsed != null && parsed > 0)

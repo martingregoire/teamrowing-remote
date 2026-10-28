@@ -2,6 +2,7 @@ package de.gregoire.teamrowingremote.bpm
 
 import android.content.Context
 import android.util.AtomicFile
+import de.gregoire.teamrowingremote.spotify.Track
 import de.gregoire.teamrowingremote.sync.BpmSyncStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -17,15 +18,18 @@ import org.json.JSONObject
 import java.io.File
 
 /**
- * BPM per track URI, synced with the display app, where they are looked up, and stored as a JSON
- * file. The trainer can correct them here too. The copy here is sent on each connection, so the
- * display app gets edits made while disconnected, and can recover its data.
+ * BPM per track URI, synced with the display app and stored as a JSON file. The trainer can correct
+ * them here too. The copy here is sent on each connection, so the display app gets edits made while
+ * disconnected, and can recover its data. Tracks of sessions being prepared are looked up here, the
+ * others in the display app.
  */
-class BpmStore(context: Context) : BpmSyncStore {
+class BpmStore(context: Context, private val lookup: BpmLookup = BpmLookup()) : BpmSyncStore {
 
     private val file = AtomicFile(File(context.filesDir, FILE_NAME))
     private val mutex = Mutex()
+    private val lookupMutex = Mutex()
     private var loaded = false
+    private var lastFailedLookupAt = 0L
 
     private val _entries = MutableStateFlow<Map<String, BpmEntry>>(emptyMap())
     val entries: StateFlow<Map<String, BpmEntry>> = _entries.asStateFlow()
@@ -45,6 +49,31 @@ class BpmStore(context: Context) : BpmSyncStore {
         val changed = entry.withManualBpm(manualBpm).copy(hidden = hidden)
         // Stamped with the time for merging with the display app
         if (changed == entry) entries else entries + (uri to changed.copy(editedAt = System.currentTimeMillis()))
+    }
+
+    /**
+     * Looks up the tracks that have no entry yet. Returns false if a service failed;
+     * the lookup is then retried at the earliest after [RETRY_DELAY_MS].
+     */
+    suspend fun lookUpMissing(tracks: List<Track>): Boolean = lookupMutex.withLock {
+        mutex.withLock { loadIfNeeded() }
+        val missing = tracks.filter { it.uri !in _entries.value }.distinctBy { it.uri }
+        if (missing.isEmpty()) return true
+        if (System.currentTimeMillis() < lastFailedLookupAt + RETRY_DELAY_MS) return false
+
+        val result = lookup.lookUp(missing)
+        if (!result.complete) lastFailedLookupAt = System.currentTimeMillis()
+        val newEntries = missing.mapNotNull { track ->
+            val detected = result.found[track.uri]
+            when {
+                detected != null -> track.uri to BpmEntry(detected.bpm, detected.source)
+                result.complete -> track.uri to BpmEntry()
+                else -> null
+            }
+        }
+        // Merge, as the display app may have sent entries for these tracks during the lookup
+        update { entries -> entries + newEntries.map { (uri, entry) -> uri to (entries[uri]?.mergedWith(entry) ?: entry) } }
+        result.complete
     }
 
     override suspend fun snapshot(): Map<String, BpmEntry> = mutex.withLock {
@@ -93,5 +122,6 @@ class BpmStore(context: Context) : BpmSyncStore {
 
     private companion object {
         const val FILE_NAME = "bpm.json"
+        const val RETRY_DELAY_MS = 60_000L
     }
 }
