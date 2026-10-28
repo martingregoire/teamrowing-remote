@@ -16,6 +16,8 @@ All notable changes to this app are documented in this file. The format is based
 
 - The app's version comes from the release tag, and builds after a release show the number of
   commits since then and the commit, e.g. 1.0.0-3-gabc1234.
+- The session list keeps the current track second, after the previous one, instead of in the
+  middle, so it shows more of the following tracks.
 
 ## [1.0.0] - 2026-10-26
 
