@@ -18,6 +18,8 @@ All notable changes to this app are documented in this file. The format is based
   commits since then and the commit, e.g. 1.0.0-3-gabc1234.
 - The session list keeps the current track second, after the previous one, instead of in the
   middle, so it shows more of the following tracks.
+- The current track's title takes one line, shortened with "…", so the controls don't move down
+  for long titles.
 
 ## [1.0.0] - 2026-10-26
 

@@ -261,10 +261,16 @@ fun RemoteScreen(
                         color = PrimaryText,
                         fontSize = 32.sp,
                         fontWeight = FontWeight.SemiBold,
-                        maxLines = 2,
+                        maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    Text(nowPlaying.artists, color = SecondaryText, fontSize = 22.sp, maxLines = 1)
+                    Text(
+                        nowPlaying.artists,
+                        color = SecondaryText,
+                        fontSize = 22.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
                 // Tapping the tempo edits it, also for "No tempo" tracks, where it's empty
                 Box(
