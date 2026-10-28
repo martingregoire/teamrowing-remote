@@ -11,7 +11,8 @@ All notable changes to this app are documented in this file. The format is based
 
 - Session preparation: checks a session's length, tempos and the tracks' last use against a
   template that can be changed, with a tempo chart, and puts it together from fundus playlists.
-  New sessions can be created in the app.
+  "No tempo" tracks count as stretching, not as rowing time. New sessions can be created in the
+  app.
 - BPM lookups of session and fundus tracks on the phone, synced to the display app.
 
 ### Changed

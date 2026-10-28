@@ -55,6 +55,8 @@
     <string name="section_warm_up">Warm-up</string>
     <string name="section_main">Main part</string>
     <string name="section_cool_down">Cool-down</string>
+    <string name="section_stretching">Stretching</string>
+    <string name="stretching_length">+ %1$s stretching</string>
     <string name="issue_not_prepared">No rowing tempo yet</string>
     <string name="issue_not_prepared_suggested">No rowing tempo yet, song %1$s BPM, maybe %2$s</string>
     <string name="issue_too_slow">Slower than easy (%1$d)</string>

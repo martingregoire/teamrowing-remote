@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
@@ -111,6 +112,7 @@ fun FundusScreen(
     val inSession = sessionTracks.map { it.uri }.toSet()
     // Sessions aren't fundus playlists
     val candidates = playlists?.filter { sessionDate(it.name) == null }
+    val listState = rememberLazyListState()
 
     Column(
         modifier = Modifier
@@ -129,38 +131,8 @@ fun FundusScreen(
         }
         error?.let { Text(it, color = ErrorColor) }
 
-        Text(stringResource(R.string.fundus_choose).uppercase(), color = SecondaryText, fontSize = 13.sp, letterSpacing = 1.sp)
-        when {
-            candidates == null -> LinearProgressIndicator(Modifier.fillMaxWidth(), color = Accent, trackColor = Highlight)
-            candidates.isEmpty() -> Text(stringResource(R.string.fundus_no_playlists), color = SecondaryText)
-            else -> LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(candidates, key = { it.id }) { playlist ->
-                    val selected = playlist.id in fundusIds
-                    Chip(playlist.name, selected) {
-                        onChangeFundus(if (selected) fundusIds - playlist.id else fundusIds + playlist.id)
-                    }
-                }
-            }
-        }
-        if (fundusIds.isEmpty()) {
-            Text(stringResource(R.string.fundus_none), color = SecondaryText, fontSize = 16.sp)
-            return@Column
-        }
-
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(TempoFilter.entries) { Chip(stringResource(it.label), filter == it) { filter = it } }
-            item { Chip(stringResource(R.string.filter_hide_last_session), hideLastSession) { hideLastSession = !hideLastSession } }
-        }
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(FundusOrder.entries) { Chip(stringResource(it.label), order == it) { order = it } }
-        }
-
-        if (fundusTracks == null || earlier == null) {
-            LinearProgressIndicator(Modifier.fillMaxWidth(), color = Accent, trackColor = Highlight)
-            return@Column
-        }
-        val shown = fundusTracks
-            .map { FundusRow(it.track, rowingTempo(bpmEntries[it.track.uri]), earlier) }
+        val shown = fundusTracks.orEmpty()
+            .mapNotNull { fundus -> earlier?.let { FundusRow(fundus.track, rowingTempo(bpmEntries[fundus.track.uri]), it) } }
             .filter { row ->
                 val intensity = (row.tempo as? RowingTempo.Strokes)?.let { template.intensity(it.perMinute) }
                 val matches = when (filter) {
@@ -178,8 +150,55 @@ fun FundusScreen(
                     FundusOrder.UNUSED -> rows.sortedBy { it.lastUsedDate ?: LocalDate.MIN }
                 }
             }
-        Text(pluralStringResource(R.plurals.fundus_count, shown.size, shown.size), color = SecondaryText, fontSize = 15.sp)
-        LazyColumn {
+        // One list for the choices and the tracks: it keeps its scroll position while tracks are loaded,
+        // and the choices scroll away to leave the phone's screen to the tracks
+        LazyColumn(state = listState, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            item(key = "choices") {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        stringResource(R.string.fundus_choose).uppercase(),
+                        color = SecondaryText,
+                        fontSize = 13.sp,
+                        letterSpacing = 1.sp,
+                    )
+                    when {
+                        candidates == null -> LinearProgressIndicator(Modifier.fillMaxWidth(), color = Accent, trackColor = Highlight)
+                        candidates.isEmpty() -> Text(stringResource(R.string.fundus_no_playlists), color = SecondaryText)
+                        else -> LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(candidates, key = { it.id }) { playlist ->
+                                val selected = playlist.id in fundusIds
+                                Chip(playlist.name, selected) {
+                                    onChangeFundus(if (selected) fundusIds - playlist.id else fundusIds + playlist.id)
+                                }
+                            }
+                        }
+                    }
+                    when {
+                        fundusIds.isEmpty() -> Text(stringResource(R.string.fundus_none), color = SecondaryText, fontSize = 16.sp)
+                        fundusTracks == null || earlier == null ->
+                            LinearProgressIndicator(Modifier.fillMaxWidth(), color = Accent, trackColor = Highlight)
+                        else -> {
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                items(TempoFilter.entries) { Chip(stringResource(it.label), filter == it) { filter = it } }
+                                item {
+                                    Chip(stringResource(R.string.filter_hide_last_session), hideLastSession) {
+                                        hideLastSession = !hideLastSession
+                                    }
+                                }
+                            }
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                items(FundusOrder.entries) { Chip(stringResource(it.label), order == it) { order = it } }
+                            }
+                            Text(
+                                pluralStringResource(R.plurals.fundus_count, shown.size, shown.size),
+                                color = SecondaryText,
+                                fontSize = 15.sp,
+                            )
+                        }
+                    }
+                }
+            }
+            if (fundusIds.isEmpty() || earlier == null) return@LazyColumn
             items(shown, key = { it.track.uri }) { row ->
                 FundusTrackRow(
                     row = row,
@@ -223,7 +242,8 @@ private fun FundusTrackRow(row: FundusRow, inSession: Boolean, onAdd: () -> Unit
             textAlign = TextAlign.End,
             modifier = Modifier.width(48.dp),
         )
-        IconButton(onClick = onAdd) {
+        // Disabled for tracks in the session, which are usually only there once
+        IconButton(onClick = onAdd, enabled = !inSession) {
             Icon(
                 if (inSession) Icons.Filled.Check else Icons.Filled.Add,
                 contentDescription = stringResource(R.string.add),

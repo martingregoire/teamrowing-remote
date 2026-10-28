@@ -50,6 +50,18 @@ class SessionCheckTest {
     }
 
     @Test
+    fun stretchingTracksDontCountAsRowingTime() {
+        // 11 rowing tracks of 4 minutes and two stretching tracks at the end
+        val result = check(20.0, 22.0, 24.0, 22.0, 25.0, 22.0, 24.0, 21.0, 24.0, 22.0, 20.0, null, null)
+        assertTrue(result.lengthOk)
+        assertEquals(44 * MINUTE_MS, result.totalMs)
+        assertEquals(8 * MINUTE_MS, result.stretchingMs)
+        assertEquals(Section.COOL_DOWN, result.tracks[10].section)
+        assertEquals(listOf(Section.STRETCHING, Section.STRETCHING), result.tracks.drop(11).map { it.section })
+        assertEquals(0, result.tracksWithIssues)
+    }
+
+    @Test
     fun noTempoTracksInterruptStepsAndHardSequences() {
         val result = check(22.0, 24.0, null, 26.0, 18.0, null, 20.0)
         assertEquals(emptyList<TrackIssue>(), result.tracks[3].issues)

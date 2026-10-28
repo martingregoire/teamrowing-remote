@@ -95,7 +95,7 @@ class SpotifyApi(private val auth: SpotifyAuth) {
         send("PUT", "/playlists/$playlistId/items", JSONObject().put("range_start", from).put("insert_before", insertBefore))
     }
 
-    /** Removes all occurrences of the track [uri] from a playlist. */
+    /** Removes all occurrences of the track [uri] from a playlist; Spotify's call takes tracks, not positions. */
     suspend fun removeFromPlaylist(playlistId: String, uri: String) {
         val items = JSONArray().put(JSONObject().put("uri", uri))
         send("DELETE", "/playlists/$playlistId/items", JSONObject().put("items", items))

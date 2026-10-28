@@ -43,7 +43,8 @@ from the fundus. All rules only give hints, nothing is prevented.
 - **Sessions** are the trainer's own playlists named `TR` and their date, e.g. `TR 28.10.2026`.
   "New" creates one, named a week after the newest session by default. The sessions before the
   prepared one are its history.
-- **Length:** the session's length against the target, 45 minutes ± 2 by default.
+- **Length:** the rowing time against the target, 45 minutes ± 2 by default. "No tempo" tracks
+  are stretching, usually at the end: they don't count, and are shown with their own length.
 - **Tempo chart:** the tracks as bars over time, as high as their tempo, on the easy and hard
   tempo bands, with the end of the warm-up, the start of the cool-down and the target length
   marked.
@@ -51,11 +52,11 @@ from the fundus. All rules only give hints, nothing is prevented.
   [RP3 Rowing](https://rp3rowing.com/blog-items/how-do-you-incorporate-tempo-training-into-rowing-workouts/):
   easy tracks (20–23) in the warm-up (9 min) and cool-down (7 min), no two hard tracks (24 and
   faster) in a row, nothing slower than easy, and steps of at most 4 from one track to the next.
-  "No tempo" tracks, e.g. for stretching, interrupt the steps. The numbers can be changed in the
-  settings (gear icon).
+  The numbers can be changed in the settings (gear icon).
 - **Tracks:** each with the rules it breaks, a hint if it was in the last session, and the last
   session it was used in. Tapping a track shows actions to move it up or down or remove it;
-  tapping its tempo edits it.
+  tapping its tempo edits it. Spotify can only remove all copies of a track, so the app adds the
+  other copies of a track that is in the session more than once back.
 - **Tempos:** only the trainer's rowing tempos count. Lookups give the song's BPM, usually two or
   four times the rowing tempo, so tracks without a correction show a suggestion in grey (e.g.
   "≈23") until the tempo is set. The phone looks up the BPM of session and fundus tracks itself, and

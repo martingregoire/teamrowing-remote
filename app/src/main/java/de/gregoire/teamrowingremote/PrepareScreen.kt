@@ -85,6 +85,7 @@ private val ErrorColor = Color(0xFFFF6B6B)
 private val EasyBand = Color(0xFF151515)
 private val HardBand = Color(0xFF2A2210)
 private val NotPreparedBar = Color(0xFF5A5A5A)
+private val SheetBackground = Color(0xFF1A1A1A)
 
 /**
  * Checks the session against the template: its length, a chart of the tempos over time, and its
@@ -104,7 +105,7 @@ fun PrepareScreen(
     onNewSession: (String) -> Unit,
     onAddTracks: () -> Unit,
     onMove: (from: Int, to: Int) -> Unit,
-    onRemove: (uri: String) -> Unit,
+    onRemove: (index: Int) -> Unit,
     onSaveTempo: (uri: String, manualBpm: Double?, hidden: Boolean) -> Unit,
     onUpdateTemplate: (SessionTemplate) -> Unit,
 ) {
@@ -193,21 +194,24 @@ fun PrepareScreen(
             return@Column
         }
 
-        Summary(check)
-        TempoChart(check, Modifier.fillMaxWidth().height(140.dp))
-        Button(
-            onClick = onAddTracks,
-            colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Color.Black),
-            modifier = Modifier.fillMaxWidth().height(52.dp),
-        ) {
-            Text(stringResource(R.string.add_tracks), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-        }
-
-        if (check.tracks.isEmpty()) {
-            Text(stringResource(R.string.empty_session), color = SecondaryText, fontSize = 18.sp)
-            return@Column
-        }
+        // The summary and chart scroll away with the tracks, which leaves the phone's screen to the list
         LazyColumn {
+            item(key = "overview") {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Summary(check)
+                    TempoChart(check, Modifier.fillMaxWidth().height(140.dp))
+                    Button(
+                        onClick = onAddTracks,
+                        colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Color.Black),
+                        modifier = Modifier.fillMaxWidth().height(52.dp),
+                    ) {
+                        Text(stringResource(R.string.add_tracks), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                    if (check.tracks.isEmpty()) {
+                        Text(stringResource(R.string.empty_session), color = SecondaryText, fontSize = 18.sp)
+                    }
+                }
+            }
             items(check.tracks, key = { "${it.index}:${it.track.uri}" }) { checked ->
                 val previous = check.tracks.getOrNull(checked.index - 1)
                 if (previous?.section != checked.section) SectionHeader(checked)
@@ -231,7 +235,7 @@ fun PrepareScreen(
                             selectedIndex = checked.index + 1
                         },
                         onRemove = {
-                            onRemove(checked.track.uri)
+                            onRemove(checked.index)
                             selectedIndex = null
                         },
                     )
@@ -256,6 +260,14 @@ private fun Summary(check: SessionCheck) {
                 fontSize = 22.sp,
                 fontWeight = FontWeight.SemiBold,
             )
+            if (check.stretchingMs > 0) {
+                Text(
+                    stringResource(R.string.stretching_length, formatDuration(check.stretchingMs)),
+                    color = SecondaryText,
+                    fontSize = 16.sp,
+                    modifier = Modifier.padding(start = 12.dp, bottom = 2.dp),
+                )
+            }
             if (!check.lengthOk) {
                 val difference = formatDuration(abs(check.lengthDifferenceMs))
                 Text(
@@ -288,6 +300,8 @@ private fun Summary(check: SessionCheck) {
                 )
             }
         }
+        // An empty session has nothing to check yet
+        if (check.tracks.isEmpty()) return@Column
         Text(
             parts.joinToString(" · ").ifEmpty { stringResource(R.string.no_issues) },
             color = if (check.tracksWithIssues > 0) ErrorColor else SecondaryText,
@@ -340,8 +354,8 @@ private fun TempoChart(check: SessionCheck, modifier: Modifier = Modifier) {
         for (checked in check.tracks) {
             val (top, color) = when (val tempo = checked.tempo) {
                 is RowingTempo.Strokes -> y(tempo.perMinute) to (if (checked.breaksRule) ErrorColor else Accent)
-                // Low bars, so the time the track takes is still visible
-                RowingTempo.None -> y(minTempo + 1.0) to Highlight
+                // Stretching isn't rowing time
+                RowingTempo.None -> continue
                 is RowingTempo.NotPrepared -> y(minTempo + 2.0) to NotPreparedBar
             }
             bar(x(checked.startMs) + gap, x(checked.endMs) - gap, top, color)
@@ -364,6 +378,7 @@ private fun SectionHeader(checked: CheckedTrack) {
                 Section.WARM_UP -> R.string.section_warm_up
                 Section.MAIN -> R.string.section_main
                 Section.COOL_DOWN -> R.string.section_cool_down
+                Section.STRETCHING -> R.string.section_stretching
             },
         ).uppercase(),
         color = SecondaryText,
@@ -528,19 +543,30 @@ private fun NewSessionDialog(initialName: String, onCreate: (String) -> Unit, on
     var name by rememberSaveable { mutableStateOf(initialName) }
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = SheetBackground,
+        titleContentColor = PrimaryText,
+        textContentColor = SecondaryText,
         title = { Text(stringResource(R.string.new_session_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(value = name, onValueChange = { name = it }, singleLine = true)
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    singleLine = true,
+                    textStyle = TextStyle(color = PrimaryText, fontSize = 18.sp),
+                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Accent, cursorColor = Accent),
+                )
                 Text(stringResource(R.string.new_session_hint), fontSize = 14.sp)
             }
         },
         confirmButton = {
             TextButton(onClick = { onCreate(name.trim()) }, enabled = name.isNotBlank()) {
-                Text(stringResource(R.string.create))
+                Text(stringResource(R.string.create), color = Accent, fontSize = 16.sp)
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel), color = Accent, fontSize = 16.sp) }
+        },
     )
 }
 
@@ -554,7 +580,7 @@ private fun TemplateSheet(template: SessionTemplate, onSave: (SessionTemplate) -
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = Color(0xFF1A1A1A),
+        containerColor = SheetBackground,
         contentColor = PrimaryText,
     ) {
         Column(

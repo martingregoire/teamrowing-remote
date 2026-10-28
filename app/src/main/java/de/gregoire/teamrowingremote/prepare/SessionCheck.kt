@@ -8,7 +8,8 @@ import kotlin.math.abs
  * What a session should look like, after the beginner advice of
  * https://rp3rowing.com/blog-items/how-do-you-incorporate-tempo-training-into-rowing-workouts/:
  * an easy warm-up and cool-down, and a main part that never has two hard tracks in a row, with
- * small tempo steps throughout. Tempos are strokes per minute.
+ * small tempo steps throughout. Tempos are strokes per minute. Lengths are rowing time, without
+ * the "No tempo" tracks for stretching.
  */
 data class SessionTemplate(
     val lengthMinutes: Int = 45,
@@ -28,7 +29,8 @@ data class SessionTemplate(
     }
 }
 
-enum class Section { WARM_UP, MAIN, COOL_DOWN }
+/** Where a track is in the session; "No tempo" tracks are stretching, wherever they are. */
+enum class Section { WARM_UP, MAIN, COOL_DOWN, STRETCHING }
 
 enum class Intensity { SLOW, EASY, HARD }
 
@@ -85,6 +87,7 @@ data class CheckedTrack(
     val track: Track,
     /** Position in the session playlist. */
     val index: Int,
+    /** Where the track starts in the rowing time, which leaves out stretching tracks. */
     val startMs: Long,
     val section: Section,
     val tempo: RowingTempo,
@@ -103,7 +106,10 @@ data class SessionCheck(
     val template: SessionTemplate,
     val lastSession: PastSession?,
 ) {
-    val totalMs: Long = tracks.sumOf { it.track.durationMs }
+    /** The rowing time, without stretching. */
+    val totalMs: Long = tracks.filter { it.section != Section.STRETCHING }.sumOf { it.track.durationMs }
+
+    val stretchingMs: Long = tracks.filter { it.section == Section.STRETCHING }.sumOf { it.track.durationMs }
 
     /** Positive if the session is longer than the template's length. */
     val lengthDifferenceMs: Long = totalMs - template.lengthMinutes * MINUTE_MS
@@ -128,7 +134,9 @@ fun checkSession(
     template: SessionTemplate,
     history: SessionHistory,
 ): SessionCheck {
-    val totalMs = tracks.sumOf { it.durationMs }
+    val tempos = tracks.map { rowingTempo(entries[it.uri]) }
+    // Stretching ("No tempo") tracks don't count as rowing time, usually at the end of the session
+    val totalMs = tracks.zip(tempos).filter { (_, tempo) -> tempo != RowingTempo.None }.sumOf { it.first.durationMs }
     val coolDownFromMs = totalMs - template.coolDownMinutes * MINUTE_MS
     val repeated = tracks.groupingBy { it.uri }.eachCount().filterValues { it > 1 }.keys
 
@@ -139,12 +147,13 @@ fun checkSession(
     val checked = tracks.mapIndexed { index, track ->
         // A track belongs to the section that most of it is in
         val middleMs = startMs + track.durationMs / 2
+        val tempo = tempos[index]
         val section = when {
+            tempo == RowingTempo.None -> Section.STRETCHING
             middleMs < template.warmUpMinutes * MINUTE_MS -> Section.WARM_UP
             middleMs > coolDownFromMs -> Section.COOL_DOWN
             else -> Section.MAIN
         }
-        val tempo = rowingTempo(entries[track.uri])
         val issues = mutableListOf<TrackIssue>()
         var intensity: Intensity? = null
         when (tempo) {
@@ -184,7 +193,7 @@ fun checkSession(
             issues = issues,
             inLastSession = history.isInLastSession(track.uri),
             lastUsed = history.lastUsed(track.uri),
-        ).also { startMs += track.durationMs }
+        ).also { if (section != Section.STRETCHING) startMs += track.durationMs }
     }
     return SessionCheck(checked, template, history.lastSession)
 }

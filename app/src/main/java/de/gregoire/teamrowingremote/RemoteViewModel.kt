@@ -256,11 +256,21 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
         state = state.copy(sessionTracks = tracks.toMutableList().apply { add(to, removeAt(from)) })
     }
 
-    /** Removes the track [uri] from the session; Spotify removes all of its occurrences. */
-    fun removeFromSession(uri: String) = editSession {
+    /**
+     * Removes the session's track at [index]. Spotify only removes all occurrences of a track, so the
+     * other occurrences of a track that is in the session more than once are added back at their positions.
+     */
+    fun removeFromSession(index: Int) = editSession {
         val session = state.session ?: return@editSession
+        val tracks = state.sessionTracks ?: return@editSession
+        val uri = tracks.getOrNull(index)?.uri ?: return@editSession
+        val remaining = tracks.filterIndexed { i, _ -> i != index }
         api.removeFromPlaylist(session.id, uri)
-        state = state.copy(sessionTracks = state.sessionTracks?.filter { it.uri != uri })
+        // Ascending, so each one is added at its final position
+        for (position in remaining.indices.filter { remaining[it].uri == uri }) {
+            api.addToPlaylist(session.id, listOf(uri), position)
+        }
+        state = state.copy(sessionTracks = remaining)
     }
 
     /** Runs a change of the session playlist after the previous ones, showing errors. */
