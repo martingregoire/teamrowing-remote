@@ -327,10 +327,10 @@ fun RemoteScreen(
                 -1
             }
             val listState = rememberLazyListState()
-            // Keeps the current track in the middle of the list: when it changes, and a while after
-            // the list was scrolled by hand
+            // Keeps the current track second in the list, after the previous one, so most of the list shows
+            // the following tracks: when it changes, and a while after the list was scrolled by hand
             LaunchedEffect(currentIndex, tracks) {
-                if (currentIndex >= 0) listState.scrollToCenter(currentIndex)
+                if (currentIndex >= 0) listState.scrollToCurrent(currentIndex)
             }
             // Only dragging counts: the automatic scroll is a scroll too, and must not restart this effect,
             // which would cancel the scroll itself
@@ -339,7 +339,7 @@ fun RemoteScreen(
             LaunchedEffect(isDragged) {
                 if (!isDragged) {
                     delay(RECENTER_DELAY_MS)
-                    if (latestIndex >= 0) listState.scrollToCenter(latestIndex)
+                    if (latestIndex >= 0) listState.scrollToCurrent(latestIndex)
                 }
             }
             LazyColumn(state = listState) {
@@ -423,12 +423,9 @@ private fun PlaybackSlider(state: RemoteState, nowPlaying: NowPlaying, enabled: 
     }
 }
 
-/** Scrolls so that the item at [index] is in the middle of the visible list, as far as possible. */
-private suspend fun LazyListState.scrollToCenter(index: Int) {
-    val info = layoutInfo
-    val itemSize = info.visibleItemsInfo.firstOrNull()?.size ?: 0
-    val viewportSize = info.viewportEndOffset - info.viewportStartOffset
-    animateScrollToItem(index, scrollOffset = -(viewportSize - itemSize) / 2)
+/** Scrolls so that the item before [index] is the first visible one, as far as the end of the list allows. */
+private suspend fun LazyListState.scrollToCurrent(index: Int) {
+    animateScrollToItem((index - 1).coerceAtLeast(0))
 }
 
 @Composable

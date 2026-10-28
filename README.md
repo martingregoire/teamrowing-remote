@@ -20,8 +20,8 @@ which shows the current and next track with their tempo on a tablet for the part
   mark the track as "No tempo", or reset it to the detected value. Corrections are synced to the
   display app, right away or at the next connection. BPM lookups only happen in the display app.
 - **Session list:** all tracks of the session with their tempo and duration, the current one
-  highlighted and kept in the middle of the list; it scrolls back to it 8 seconds after scrolling
-  by hand.
+  highlighted and kept second in the list, after the previous one, so the following tracks fill the
+  rest; it scrolls back to it 8 seconds after scrolling by hand.
   Tapping a track plays the session from there, in playlist order (shuffle is turned off). Play
   starts the session from the beginning if something else was playing.
 - **Sync with the display app:** the tempos come from
