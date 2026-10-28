@@ -596,7 +596,15 @@ private fun TemplateSheet(template: SessionTemplate, onSave: (SessionTemplate) -
                     isError = parsed[index] == null,
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Accent, cursorColor = Accent),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = PrimaryText,
+                        unfocusedTextColor = PrimaryText,
+                        focusedLabelColor = Accent,
+                        unfocusedLabelColor = SecondaryText,
+                        focusedBorderColor = Accent,
+                        unfocusedBorderColor = SecondaryText,
+                        cursorColor = Accent,
+                    ),
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
