@@ -277,13 +277,16 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
         state = state.copy(sessionTracks = state.sessionTracks.orEmpty() + track)
     }
 
-    /** Moves the session's track at [from] to [to]. */
-    fun moveInSession(from: Int, to: Int) = editSession {
-        val session = state.session ?: return@editSession
-        val tracks = state.sessionTracks ?: return@editSession
-        if (to !in tracks.indices) return@editSession
-        api.moveInPlaylist(session.id, from, to)
+    /**
+     * Moves the session's track at [from] to [to]: right away, so a dropped track doesn't jump back while
+     * Spotify is asked, and loads the session again if that fails.
+     */
+    fun moveInSession(from: Int, to: Int) {
+        val session = state.session ?: return
+        val tracks = state.sessionTracks ?: return
+        if (from !in tracks.indices || to !in tracks.indices || from == to) return
         state = state.copy(sessionTracks = tracks.toMutableList().apply { add(to, removeAt(from)) })
+        editSession(onFailure = { loadSessionTracks(session) }) { api.moveInPlaylist(session.id, from, to) }
     }
 
     /**
@@ -304,7 +307,7 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     /** Runs a change of the session playlist after the previous ones, showing errors. */
-    private fun editSession(edit: suspend () -> Unit) {
+    private fun editSession(onFailure: () -> Unit = {}, edit: suspend () -> Unit) {
         viewModelScope.launch {
             sessionEditMutex.withLock {
                 try {
@@ -312,8 +315,10 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
                     state = state.copy(error = null)
                 } catch (e: IOException) {
                     state = state.copy(error = e.message)
+                    onFailure()
                 } catch (e: JSONException) {
                     state = state.copy(error = e.message)
+                    onFailure()
                 }
             }
         }

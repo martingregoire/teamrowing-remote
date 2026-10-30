@@ -15,12 +15,10 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -75,6 +73,8 @@ import de.gregoire.teamrowingremote.spotify.Playlist
 import de.gregoire.teamrowingremote.spotify.Track
 import kotlin.math.abs
 import kotlin.math.roundToLong
+import sh.calvin.reorderable.ReorderableItem
+import sh.calvin.reorderable.rememberReorderableLazyListState
 
 private val Background = Color.Black
 private val PrimaryText = Color.White
@@ -147,6 +147,24 @@ fun PrepareScreen(
     }
     // The track whose actions are shown; tapping a track shows them
     var selectedIndex by rememberSaveable { mutableStateOf<Int?>(null) }
+    // Keys that stay with a track while it's dragged, also for a track that is in the session twice
+    val rows = remember(check?.tracks) {
+        val occurrences = mutableMapOf<String, Int>()
+        check?.tracks.orEmpty().map { SessionRow("${it.track.uri}#${occurrences.merge(it.track.uri, 1, Int::plus)}", it) }
+    }
+    // The order while a track is dragged; the move reaches the session when it's dropped
+    var dragged by remember { mutableStateOf<List<SessionRow>?>(null) }
+    var dragStart by remember { mutableStateOf<SessionRow?>(null) }
+    val listState = rememberLazyListState()
+    val reorderState = rememberReorderableLazyListState(listState) { from, to ->
+        val order = (dragged ?: rows).toMutableList()
+        val fromIndex = order.indexOfFirst { it.key == from.key }
+        val toIndex = order.indexOfFirst { it.key == to.key }
+        if (fromIndex >= 0 && toIndex >= 0) {
+            order.add(toIndex, order.removeAt(fromIndex))
+            dragged = order
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -197,7 +215,7 @@ fun PrepareScreen(
         }
 
         // The summary and chart scroll away with the tracks, which leaves the phone's screen to the list
-        LazyColumn {
+        LazyColumn(state = listState) {
             item(key = "overview") {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Summary(check)
@@ -214,38 +232,67 @@ fun PrepareScreen(
                     }
                 }
             }
-            items(check.tracks, key = { "${it.index}:${it.track.uri}" }) { checked ->
-                val previous = check.tracks.getOrNull(checked.index - 1)
-                if (previous?.section != checked.section) SectionHeader(checked)
-                PrepareTrackRow(
-                    checked = checked,
-                    template = check.template,
-                    selected = checked.index == selectedIndex,
-                    onClick = { selectedIndex = checked.index.takeIf { it != selectedIndex } },
-                    onTempoClick = { editing = checked.track },
-                )
-                if (checked.index == selectedIndex) {
-                    TrackActions(
-                        canMoveUp = checked.index > 0,
-                        canMoveDown = checked.index < check.tracks.lastIndex,
-                        onMoveUp = {
-                            onMove(checked.index, checked.index - 1)
-                            selectedIndex = checked.index - 1
-                        },
-                        onMoveDown = {
-                            onMove(checked.index, checked.index + 1)
-                            selectedIndex = checked.index + 1
-                        },
-                        onRemove = {
-                            onRemove(checked.index)
-                            selectedIndex = null
-                        },
-                    )
+            // The section headers stay at their positions while a track is dragged past them, and show
+            // which section it is dropped into
+            // A drag that started before the session changed is left for the new list
+            (dragged?.takeIf { it.size == rows.size } ?: rows).forEachIndexed { index, row ->
+                val section = rows[index].checked.section
+                if (index == 0 || rows[index - 1].checked.section != section) {
+                    item(key = "section:$index") { SectionHeader(section) }
+                }
+                item(key = row.key) {
+                    ReorderableItem(reorderState, key = row.key) { isDragging ->
+                        val checked = row.checked
+                        Column {
+                            PrepareTrackRow(
+                                checked = checked,
+                                number = index + 1,
+                                template = check.template,
+                                selected = isDragging || (dragged == null && checked.index == selectedIndex),
+                                onClick = { selectedIndex = checked.index.takeIf { it != selectedIndex } },
+                                onTempoClick = { editing = checked.track },
+                                handle = {
+                                    Icon(
+                                        MediaIcons.DragHandle,
+                                        contentDescription = stringResource(R.string.move),
+                                        tint = SecondaryText,
+                                        modifier = Modifier
+                                            .draggableHandle(
+                                                onDragStarted = {
+                                                    selectedIndex = null
+                                                    dragStart = row
+                                                },
+                                                onDragStopped = {
+                                                    val from = rows.indexOf(dragStart)
+                                                    val to = dragged?.indexOf(dragStart) ?: from
+                                                    dragged = null
+                                                    dragStart = null
+                                                    if (from >= 0 && to >= 0 && from != to) onMove(from, to)
+                                                },
+                                            )
+                                            .size(48.dp)
+                                            .padding(12.dp),
+                                    )
+                                },
+                            )
+                            if (dragged == null && checked.index == selectedIndex) {
+                                TrackActions(
+                                    onRemove = {
+                                        onRemove(checked.index)
+                                        selectedIndex = null
+                                    },
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
     }
 }
+
+/** A track of the session, with a key for the list that stays with it while it's dragged. */
+private class SessionRow(val key: String, val checked: CheckedTrack)
 
 /** The session's length against the template, and how many tracks need attention. */
 @Composable
@@ -373,10 +420,10 @@ private val CheckedTrack.breaksRule: Boolean
     get() = issues.any { it != TrackIssue.NotPrepared }
 
 @Composable
-private fun SectionHeader(checked: CheckedTrack) {
+private fun SectionHeader(section: Section) {
     Text(
         stringResource(
-            when (checked.section) {
+            when (section) {
                 Section.WARM_UP -> R.string.section_warm_up
                 Section.MAIN -> R.string.section_main
                 Section.COOL_DOWN -> R.string.section_cool_down
@@ -393,10 +440,12 @@ private fun SectionHeader(checked: CheckedTrack) {
 @Composable
 private fun PrepareTrackRow(
     checked: CheckedTrack,
+    number: Int,
     template: SessionTemplate,
     selected: Boolean,
     onClick: () -> Unit,
     onTempoClick: () -> Unit,
+    handle: @Composable () -> Unit,
 ) {
     Row(
         modifier = Modifier
@@ -407,7 +456,7 @@ private fun PrepareTrackRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            "${checked.index + 1}",
+            "$number",
             color = SecondaryText,
             fontSize = 16.sp,
             modifier = Modifier.width(32.dp),
@@ -440,6 +489,7 @@ private fun PrepareTrackRow(
             textAlign = TextAlign.End,
             modifier = Modifier.width(48.dp),
         )
+        handle()
     }
 }
 
@@ -507,13 +557,7 @@ private fun issueText(issue: TrackIssue, checked: CheckedTrack, template: Sessio
 }
 
 @Composable
-private fun TrackActions(
-    canMoveUp: Boolean,
-    canMoveDown: Boolean,
-    onMoveUp: () -> Unit,
-    onMoveDown: () -> Unit,
-    onRemove: () -> Unit,
-) {
+private fun TrackActions(onRemove: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -521,8 +565,6 @@ private fun TrackActions(
             .padding(horizontal = 4.dp),
         horizontalArrangement = Arrangement.SpaceEvenly,
     ) {
-        ActionButton(Icons.Filled.KeyboardArrowUp, stringResource(R.string.move_up), canMoveUp, onMoveUp)
-        ActionButton(Icons.Filled.KeyboardArrowDown, stringResource(R.string.move_down), canMoveDown, onMoveDown)
         ActionButton(Icons.Filled.Close, stringResource(R.string.remove), true, onRemove)
     }
 }

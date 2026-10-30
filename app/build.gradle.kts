@@ -77,6 +77,8 @@ dependencies {
     // Spotify App Remote SDK, only distributed as AAR: https://github.com/spotify/android-sdk/releases
     implementation(files("libs/spotify-app-remote-release-0.8.0.aar"))
     implementation(libs.gson)
+    // Dragging the session's tracks to another position
+    implementation(libs.reorderable)
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
