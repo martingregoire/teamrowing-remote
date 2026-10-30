@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
@@ -74,7 +75,7 @@ private enum class FundusOrder(val label: Int) {
 
 /**
  * The tracks of the fundus playlists chosen by the trainer, to add to the session: with their tempo
- * and when they were last used, filtered by tempo and sorted by tempo, by how long they weren't used
+ * and when they were last used, to listen to with [preview], filtered by tempo and sorted by tempo, by how long they weren't used
  * or by length.
  */
 @Composable
@@ -92,8 +93,11 @@ fun FundusScreen(
     onChangeFundus: (Set<String>) -> Unit,
     onAdd: (Track) -> Unit,
     onSaveTempo: (uri: String, manualBpm: Double?, hidden: Boolean) -> Unit,
+    preview: TrackPreview,
 ) {
     var editing by remember { mutableStateOf<Track?>(null) }
+    // Whether the edited track was opened with its play button, to start playing it right away
+    var listening by remember { mutableStateOf(false) }
     editing?.let { track ->
         TempoEditorSheet(
             track = track,
@@ -103,6 +107,8 @@ fun FundusScreen(
                 editing = null
             },
             onDismiss = { editing = null },
+            preview = preview,
+            autoPlay = listening,
         )
     }
     var filter by rememberSaveable { mutableStateOf(TempoFilter.ALL) }
@@ -208,7 +214,14 @@ fun FundusScreen(
                     row = row,
                     inSession = row.track.uri in inSession,
                     onAdd = { onAdd(row.track) },
-                    onTempoClick = { editing = row.track },
+                    onPlay = {
+                        listening = true
+                        editing = row.track
+                    },
+                    onTempoClick = {
+                        listening = false
+                        editing = row.track
+                    },
                 )
             }
         }
@@ -222,7 +235,13 @@ private class FundusRow(val track: Track, val tempo: RowingTempo, history: Sessi
 }
 
 @Composable
-private fun FundusTrackRow(row: FundusRow, inSession: Boolean, onAdd: () -> Unit, onTempoClick: () -> Unit) {
+private fun FundusTrackRow(
+    row: FundusRow,
+    inSession: Boolean,
+    onAdd: () -> Unit,
+    onPlay: () -> Unit,
+    onTempoClick: () -> Unit,
+) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -237,6 +256,9 @@ private fun FundusTrackRow(row: FundusRow, inSession: Boolean, onAdd: () -> Unit
             } else {
                 UsageHint(row.inLastSession, row.lastUsed)
             }
+        }
+        IconButton(onClick = onPlay) {
+            Icon(Icons.Filled.PlayArrow, contentDescription = stringResource(R.string.play_preview), tint = PrimaryText)
         }
         TempoBox(row.tempo, highlighted = false, onClick = onTempoClick)
         Text(

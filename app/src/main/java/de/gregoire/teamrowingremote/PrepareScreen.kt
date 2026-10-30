@@ -108,6 +108,7 @@ fun PrepareScreen(
     onRemove: (index: Int) -> Unit,
     onSaveTempo: (uri: String, manualBpm: Double?, hidden: Boolean) -> Unit,
     onUpdateTemplate: (SessionTemplate) -> Unit,
+    preview: TrackPreview,
 ) {
     var editing by remember { mutableStateOf<Track?>(null) }
     editing?.let { track ->
@@ -119,6 +120,7 @@ fun PrepareScreen(
                 editing = null
             },
             onDismiss = { editing = null },
+            preview = preview,
         )
     }
     var editingTemplate by rememberSaveable { mutableStateOf(false) }

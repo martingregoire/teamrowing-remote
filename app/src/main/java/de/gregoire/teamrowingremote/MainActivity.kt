@@ -183,6 +183,7 @@ class MainActivity : ComponentActivity() {
         LaunchedEffect(state.playlists) { state.playlists?.let(preparation::load) }
         LaunchedEffect(state.sessionTracks) { state.sessionTracks?.let(preparation::lookUpMissing) }
         val error = state.error ?: preparation.error
+        val preview = TrackPreview(state, viewModel::playPreview, viewModel::pause, viewModel::resume, viewModel::seekTo)
 
         if (showFundus) {
             FundusScreen(
@@ -199,6 +200,7 @@ class MainActivity : ComponentActivity() {
                 onChangeFundus = preparation::setFundus,
                 onAdd = viewModel::addToSession,
                 onSaveTempo = viewModel::saveTempo,
+                preview = preview,
             )
             return
         }
@@ -228,6 +230,7 @@ class MainActivity : ComponentActivity() {
             onRemove = viewModel::removeFromSession,
             onSaveTempo = viewModel::saveTempo,
             onUpdateTemplate = preparation::updateTemplate,
+            preview = preview,
         )
     }
 
@@ -456,7 +459,7 @@ fun RemoteScreen(
 // The customized slider track is still experimental in Material 3
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun PlaybackSlider(state: RemoteState, nowPlaying: NowPlaying, enabled: Boolean, onSeek: (Long) -> Unit) {
+internal fun PlaybackSlider(state: RemoteState, nowPlaying: NowPlaying, enabled: Boolean, onSeek: (Long) -> Unit) {
     var now by remember { mutableLongStateOf(SystemClock.elapsedRealtime()) }
     LaunchedEffect(state.positionUpdatedAt, state.isPaused) {
         while (!state.isPaused) {

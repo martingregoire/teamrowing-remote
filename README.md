@@ -65,7 +65,11 @@ from the fundus. All rules only give hints, nothing is prevented.
   (all playlists except the sessions), with their tempo and last use. They can be filtered by
   easy, hard or without tempo, hide the tracks of the last session, and be sorted by tempo, by
   the time since they were last used or by length (shortest first). "+" adds a track at the end
-  of the session.
+  of the session, "▶" opens its tempo and plays it from the middle to listen to it first.
+- **Tapping the tempo:** in the tempo editor, tapping along with the beat or the strokes measures
+  the tempo, and the rowing tempo it stands for, halved as often as needed, is entered. On the
+  preparation screens, the editor can also play the track, with a seek bar; playback started there
+  is paused when it closes.
 
 ## How it works
 

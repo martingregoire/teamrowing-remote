@@ -36,9 +36,11 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONException
 import java.io.IOException
 
@@ -114,6 +116,7 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
     private var remote: SpotifyRemote? = null
     private var connectJob: Job? = null
     private var sessionJob: Job? = null
+    private var previewJob: Job? = null
 
     init {
         viewModelScope.launch { bpmStore.load() }
@@ -231,6 +234,33 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
             state.session != null && state.contextUri != state.session?.uri -> playSessionTrack(0)
             else -> remote.resume()
         }
+    }
+
+    /** Plays [track] on its own from its middle, to listen to it before adding it to the session. */
+    fun playPreview(track: Track) {
+        val remote = remote ?: return
+        previewJob?.cancel()
+        if (state.nowPlaying?.uri == track.uri) {
+            remote.seekTo(track.durationMs / 2)
+            remote.resume()
+            return
+        }
+        remote.play(track.uri)
+        previewJob = viewModelScope.launch {
+            // Seeking before the Spotify app has switched tracks would seek in the previous one
+            withTimeoutOrNull(PREVIEW_START_TIMEOUT_MS) { snapshotFlow { state.nowPlaying?.uri }.first { it == track.uri } }
+                ?: return@launch
+            remote.seekTo(track.durationMs / 2)
+        }
+    }
+
+    fun pause() {
+        remote?.pause()
+    }
+
+    /** Resumes what was playing, unlike [togglePlayPause], which may start the session instead. */
+    fun resume() {
+        remote?.resume()
     }
 
     /** Creates a session playlist named [name] and selects it. */
@@ -412,6 +442,7 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
         const val STALE_QUEUE_RETRY_MS = 500L
         const val MAX_STALE_QUEUE_ATTEMPTS = 6
         const val QUEUE_RETRY_MS = 5_000L
+        const val PREVIEW_START_TIMEOUT_MS = 5_000L
         val OTHER_CONTEXT_PREFIXES = listOf(PLAYLIST_URI_PREFIX, "spotify:album:", "spotify:artist:", "spotify:show:")
     }
 }

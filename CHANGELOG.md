@@ -14,6 +14,8 @@ All notable changes to this app are documented in this file. The format is based
   "No tempo" tracks count as stretching, not as rowing time. New sessions can be created in the
   app.
 - BPM lookups of session and fundus tracks on the phone, synced to the display app.
+- Listening to fundus tracks from their middle before adding them, and measuring a track's tempo by
+  tapping along in the tempo editor.
 
 ### Changed
 

@@ -59,10 +59,13 @@ fun rowingTempo(entry: BpmEntry?): RowingTempo {
 }
 
 /** A rowing tempo for a song's [bpm]: the BPM halved as often as it brings it closest to a usual one. */
-fun suggestedTempo(bpm: Double): Double =
-    generateSequence(bpm) { it / 2 }.take(4).minBy { abs(it - USUAL_ROWING_TEMPO) }
+fun suggestedTempo(bpm: Double): Double = bpm / (1 shl suggestedHalvings(bpm))
+
+/** How often a song's [bpm] is halved for [suggestedTempo]. */
+fun suggestedHalvings(bpm: Double): Int = (0..MAX_HALVINGS).minBy { abs(bpm / (1 shl it) - USUAL_ROWING_TEMPO) }
 
 const val MAX_ROWING_TEMPO = 40.0
+internal const val MAX_HALVINGS = 3
 private const val USUAL_ROWING_TEMPO = 25.0
 
 sealed interface TrackIssue {

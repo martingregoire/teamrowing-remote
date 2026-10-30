@@ -102,4 +102,13 @@
     <string name="sort_tempo">By tempo</string>
     <string name="sort_unused">Unused longest</string>
     <string name="sort_length">By length</string>
+    <string name="play_preview">Listen</string>
+    <string name="tap">TAP</string>
+    <string name="tap_hint">Tap along with the beat or the strokes</string>
+    <string name="tap_reset">Start tapping again</string>
+    <string name="tap_rowing_tempo">Rowing tempo:</string>
+    <plurals name="tap_result">
+        <item quantity="one">%1$s per minute · %2$d tap</item>
+        <item quantity="other">%1$s per minute · %2$d taps</item>
+    </plurals>
 </resources>
