@@ -73,7 +73,7 @@ class SessionPreparation(
                 val sessions = playlists.mapNotNull { playlist -> sessionDate(playlist.name)?.let { playlist to it } }
                 history = SessionHistory(
                     loadTracks(sessions.map { it.first }).zip(sessions) { tracks, (playlist, date) ->
-                        PastSession(playlist, date, tracks.map { it.uri }.toSet())
+                        PastSession(playlist, date, tracks.map { it.uri }.toSet(), tracks)
                     },
                 )
                 loadFundus()

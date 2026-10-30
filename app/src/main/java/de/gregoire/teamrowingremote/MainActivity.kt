@@ -131,8 +131,14 @@ class MainActivity : ComponentActivity() {
             if (choosingPlaylist || state.session == null) {
                 BackHandler(enabled = state.session != null) { choosingPlaylist = false }
                 LaunchedEffect(Unit) { viewModel.loadPlaylists() }
+                // The sessions' tracks, for their length; loaded for preparing them anyway
+                LaunchedEffect(state.playlists) { state.playlists?.let(viewModel.preparation::load) }
+                val bpmEntries by viewModel.bpmEntries.collectAsStateWithLifecycle()
+                val history = viewModel.preparation.history
+                val rowingTimes = remember(history, bpmEntries) { history?.rowingTimes(bpmEntries).orEmpty() }
                 PlaylistsScreen(
                     playlists = state.playlists,
+                    sessionDurations = rowingTimes,
                     error = state.error,
                     onSelect = {
                         viewModel.selectSession(it)
@@ -597,12 +603,13 @@ private val SyncStatus.label: Int
     }
 
 /**
- * The user's playlists to choose the training session from: the sessions, newest first, then the
- * other playlists, the fundus, by name.
+ * The user's playlists to choose the training session from: the sessions, newest first, with their
+ * rowing time from [sessionDurations] once it's loaded, then the other playlists, the fundus, by name.
  */
 @Composable
 fun PlaylistsScreen(
     playlists: List<Playlist>?,
+    sessionDurations: Map<String, Long>,
     error: String?,
     onSelect: (Playlist) -> Unit,
     onBack: (() -> Unit)?,
@@ -632,7 +639,7 @@ fun PlaylistsScreen(
                 val sessions = playlists.filter { dated[it] != null }
                     .sortedWith(compareByDescending<Playlist> { dated[it] }.thenBy { it.name })
                 val fundus = playlists.filter { dated[it] == null }.sortedWith(compareBy(Collator.getInstance()) { it.name })
-                items(sessions, key = { it.id }) { PlaylistRow(it, onSelect) }
+                items(sessions, key = { it.id }) { PlaylistRow(it, sessionDurations[it.id], onSelect) }
                 if (fundus.isNotEmpty()) {
                     item(key = "fundus") {
                         Text(
@@ -644,14 +651,14 @@ fun PlaylistsScreen(
                         )
                     }
                 }
-                items(fundus, key = { it.id }) { PlaylistRow(it, onSelect) }
+                items(fundus, key = { it.id }) { PlaylistRow(it, durationMs = null, onSelect) }
             }
         }
     }
 }
 
 @Composable
-private fun PlaylistRow(playlist: Playlist, onSelect: (Playlist) -> Unit) {
+private fun PlaylistRow(playlist: Playlist, durationMs: Long?, onSelect: (Playlist) -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -660,7 +667,8 @@ private fun PlaylistRow(playlist: Playlist, onSelect: (Playlist) -> Unit) {
     ) {
         Text(playlist.name, color = PrimaryText, fontSize = 22.sp)
         Text(
-            pluralStringResource(R.plurals.track_count, playlist.trackCount, playlist.trackCount),
+            pluralStringResource(R.plurals.track_count, playlist.trackCount, playlist.trackCount) +
+                durationMs?.let { " · " + formatDuration(it) }.orEmpty(),
             color = SecondaryText,
             fontSize = 16.sp,
         )

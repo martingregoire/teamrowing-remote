@@ -13,8 +13,8 @@ which shows the current and next track with their tempo on a tablet for the part
 - **Controls:** the current track, pushed live by the Spotify app, with previous, play/pause and
   next, and a progress bar to seek within the track.
 - **Sessions:** each of the trainer's own Spotify playlists can be played as a training session.
-  The list shows the sessions (see below) first, newest first, then the other playlists, the
-  fundus, by name. The chosen session is remembered, and a playlist started in the Spotify app is
+  The list shows the sessions (see below) first, newest first, with their rowing time, then the
+  other playlists, the fundus, by name. The chosen session is remembered, and a playlist started in the Spotify app is
   picked up automatically.
 - **Tempo:** each track's tempo (strokes per minute) next to the current track and in the session
   list, as prepared in the display app. Tracks marked "No tempo" show none, unknown ones "–".

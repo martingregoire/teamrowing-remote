@@ -110,6 +110,14 @@ class SessionCheckTest {
     }
 
     @Test
+    fun sessionRowingTimesLeaveOutStretching() {
+        val tracks = listOf(track(1), track(2), track(3, minutes = 5.0))
+        val session = PastSession(Playlist("s", "TR 28.10.2026", trackCount = 3), LocalDate.of(2026, 10, 28), emptySet(), tracks)
+        val entries = mapOf(tracks[2].uri to BpmEntry(hidden = true))
+        assertEquals(mapOf("s" to (8 * MINUTE_MS).toLong()), SessionHistory(listOf(session)).rowingTimes(entries))
+    }
+
+    @Test
     fun parsesSessionNames() {
         assertEquals(LocalDate.of(2026, 10, 28), sessionDate("TR 28.10.2026"))
         assertEquals(LocalDate.of(2026, 10, 28), sessionDate("TR 28.10.2026 Pyramide"))

@@ -1,6 +1,8 @@
 package de.gregoire.teamrowingremote.prepare
 
+import de.gregoire.teamrowingremote.bpm.BpmEntry
 import de.gregoire.teamrowingremote.spotify.Playlist
+import de.gregoire.teamrowingremote.spotify.Track
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
@@ -27,6 +29,7 @@ data class PastSession(
     val playlist: Playlist,
     val date: LocalDate,
     val trackUris: Set<String>,
+    val tracks: List<Track> = emptyList(),
 )
 
 /** The training sessions so far, to tell which tracks were used recently. */
@@ -42,6 +45,11 @@ class SessionHistory(sessions: List<PastSession>) {
     /** The sessions before [date], i.e. before the session on that date; all for null. */
     fun before(date: LocalDate?): SessionHistory =
         if (date == null) this else SessionHistory(sessions.filter { it.date < date })
+
+    /** The rowing time of each session, without stretching ("No tempo") tracks, by playlist ID. */
+    fun rowingTimes(entries: Map<String, BpmEntry>): Map<String, Long> = sessions.associate { session ->
+        session.playlist.id to session.tracks.filter { rowingTempo(entries[it.uri]) != RowingTempo.None }.sumOf { it.durationMs }
+    }
 
     fun isInLastSession(uri: String): Boolean = lastSession?.trackUris?.contains(uri) == true
 
