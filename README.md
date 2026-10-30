@@ -57,8 +57,8 @@ from the fundus. All rules only give hints, nothing is prevented.
   faster) in a row, nothing slower than easy, and steps of at most 4 from one track to the next.
   The numbers can be changed in the settings (gear icon).
 - **Tracks:** each with the rules it breaks, a hint if it was in the last session, and the last
-  session it was used in. Tracks are moved by dragging their handle (≡); tapping a track shows
-  the action to remove it, tapping its tempo edits it. Spotify can only remove all copies of a track, so the app adds the
+  session it was used in. Tracks are moved by pressing and holding them, then dragging; tapping a
+  track shows the action to remove it, tapping its tempo edits it. Spotify can only remove all copies of a track, so the app adds the
   other copies of a track that is in the session more than once back.
 - **Tempos:** only the trainer's rowing tempos count. Lookups give the song's BPM, usually two or
   four times the rowing tempo, so tracks without a correction show a suggestion in grey (e.g.

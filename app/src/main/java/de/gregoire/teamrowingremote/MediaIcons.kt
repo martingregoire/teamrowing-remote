@@ -5,8 +5,8 @@ import androidx.compose.material.icons.materialPath
 import androidx.compose.ui.graphics.vector.ImageVector
 
 /**
- * Media icons and the drag handle from Material Icons (Apache License 2.0), which are only in the
- * large extended icon library. Text symbols like ⏸ aren't an alternative: some phones render them as colored emoji.
+ * Media icons from Material Icons (Apache License 2.0), which are only in the large extended icon
+ * library. Text symbols like ⏸ aren't an alternative: some phones render them as colored emoji.
  */
 object MediaIcons {
 
@@ -42,25 +42,6 @@ object MediaIcons {
                 horizontalLineToRelative(2f)
                 verticalLineTo(6f)
                 horizontalLineToRelative(-2f)
-                close()
-            }
-        }
-    }
-
-    val DragHandle: ImageVector by lazy {
-        materialIcon(name = "Filled.DragHandle") {
-            materialPath {
-                moveTo(20f, 9f)
-                horizontalLineTo(4f)
-                verticalLineToRelative(2f)
-                horizontalLineToRelative(16f)
-                verticalLineTo(9f)
-                close()
-                moveTo(4f, 15f)
-                horizontalLineToRelative(16f)
-                verticalLineToRelative(-2f)
-                horizontalLineTo(4f)
-                verticalLineToRelative(2f)
                 close()
             }
         }

@@ -48,6 +48,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
@@ -160,6 +162,7 @@ fun PrepareScreen(
     var dragged by remember { mutableStateOf<List<SessionRow>?>(null) }
     var draggedKey by remember { mutableStateOf<String?>(null) }
     val listState = rememberLazyListState()
+    val haptics = LocalHapticFeedback.current
     val reorderState = rememberReorderableLazyListState(listState) { from, to ->
         val order = (dragged ?: currentRows).toMutableList()
         val fromIndex = order.indexOfFirst { it.key == from.key }
@@ -255,29 +258,21 @@ fun PrepareScreen(
                                 selected = isDragging || (dragged == null && checked.index == selectedIndex),
                                 onClick = { selectedIndex = checked.index.takeIf { it != selectedIndex } },
                                 onTempoClick = { editing = checked.track },
-                                handle = {
-                                    Icon(
-                                        MediaIcons.DragHandle,
-                                        contentDescription = stringResource(R.string.move),
-                                        tint = SecondaryText,
-                                        modifier = Modifier
-                                            .draggableHandle(
-                                                onDragStarted = {
-                                                    selectedIndex = null
-                                                    draggedKey = row.key
-                                                },
-                                                onDragStopped = {
-                                                    val from = currentRows.indexOfFirst { it.key == draggedKey }
-                                                    val to = dragged?.indexOfFirst { it.key == draggedKey } ?: from
-                                                    dragged = null
-                                                    draggedKey = null
-                                                    if (from >= 0 && to >= 0 && from != to) currentOnMove(from, to)
-                                                },
-                                            )
-                                            .size(48.dp)
-                                            .padding(12.dp),
-                                    )
-                                },
+                                // Pressing and holding the track drags it, so scrolling the list doesn't
+                                dragModifier = Modifier.longPressDraggableHandle(
+                                    onDragStarted = {
+                                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        selectedIndex = null
+                                        draggedKey = row.key
+                                    },
+                                    onDragStopped = {
+                                        val from = currentRows.indexOfFirst { it.key == draggedKey }
+                                        val to = dragged?.indexOfFirst { it.key == draggedKey } ?: from
+                                        dragged = null
+                                        draggedKey = null
+                                        if (from >= 0 && to >= 0 && from != to) currentOnMove(from, to)
+                                    },
+                                ),
                             )
                             if (dragged == null && checked.index == selectedIndex) {
                                 TrackActions(
@@ -463,11 +458,12 @@ private fun PrepareTrackRow(
     selected: Boolean,
     onClick: () -> Unit,
     onTempoClick: () -> Unit,
-    handle: @Composable () -> Unit,
+    dragModifier: Modifier,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .then(dragModifier)
             .background(if (selected) Highlight else Background)
             .clickable(onClick = onClick)
             .padding(vertical = 8.dp, horizontal = 4.dp),
@@ -507,7 +503,6 @@ private fun PrepareTrackRow(
             textAlign = TextAlign.End,
             modifier = Modifier.width(48.dp),
         )
-        handle()
     }
 }
 
