@@ -13,6 +13,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import de.gregoire.teamrowingremote.bpm.BpmEntry
 import de.gregoire.teamrowingremote.bpm.BpmStore
+import de.gregoire.teamrowingremote.prepare.SessionPreparation
 import de.gregoire.teamrowingremote.spotify.PLAYLIST_URI_PREFIX
 import de.gregoire.teamrowingremote.spotify.Playlist
 import de.gregoire.teamrowingremote.spotify.SpotifyApi
@@ -35,7 +36,11 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONException
 import java.io.IOException
 
@@ -102,9 +107,16 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
     var state by mutableStateOf(RemoteState(loggedIn = auth.isLoggedIn, session = loadSession()))
         private set
 
+    /** Checking sessions and putting them together from the fundus. */
+    val preparation = SessionPreparation(application, api, bpmStore, viewModelScope)
+
+    /** One change of the session playlist at a time, so they reach Spotify in the order they were made. */
+    private val sessionEditMutex = Mutex()
+
     private var remote: SpotifyRemote? = null
     private var connectJob: Job? = null
     private var sessionJob: Job? = null
+    private var previewJob: Job? = null
 
     init {
         viewModelScope.launch { bpmStore.load() }
@@ -221,6 +233,94 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
             !state.isPaused -> remote.pause()
             state.session != null && state.contextUri != state.session?.uri -> playSessionTrack(0)
             else -> remote.resume()
+        }
+    }
+
+    /** Plays [track] on its own from its middle, to listen to it before adding it to the session. */
+    fun playPreview(track: Track) {
+        val remote = remote ?: return
+        previewJob?.cancel()
+        if (state.nowPlaying?.uri == track.uri) {
+            remote.seekTo(track.durationMs / 2)
+            remote.resume()
+            return
+        }
+        remote.play(track.uri)
+        previewJob = viewModelScope.launch {
+            // Seeking before the Spotify app has switched tracks would seek in the previous one
+            withTimeoutOrNull(PREVIEW_START_TIMEOUT_MS) { snapshotFlow { state.nowPlaying?.uri }.first { it == track.uri } }
+                ?: return@launch
+            remote.seekTo(track.durationMs / 2)
+        }
+    }
+
+    fun pause() {
+        remote?.pause()
+    }
+
+    /** Resumes what was playing, unlike [togglePlayPause], which may start the session instead. */
+    fun resume() {
+        remote?.resume()
+    }
+
+    /** Creates a session playlist named [name] and selects it. */
+    fun createSession(name: String) = editSession {
+        val playlist = api.createPlaylist(name)
+        state = state.copy(playlists = state.playlists?.let { listOf(playlist) + it })
+        selectSession(playlist)
+    }
+
+    /** Adds [track] at the end of the session. */
+    fun addToSession(track: Track) = editSession {
+        val session = state.session ?: return@editSession
+        api.addToPlaylist(session.id, listOf(track.uri))
+        state = state.copy(sessionTracks = state.sessionTracks.orEmpty() + track)
+    }
+
+    /**
+     * Moves the session's track at [from] to [to]: right away, so a dropped track doesn't jump back while
+     * Spotify is asked, and loads the session again if that fails.
+     */
+    fun moveInSession(from: Int, to: Int) {
+        val session = state.session ?: return
+        val tracks = state.sessionTracks ?: return
+        if (from !in tracks.indices || to !in tracks.indices || from == to) return
+        state = state.copy(sessionTracks = tracks.toMutableList().apply { add(to, removeAt(from)) })
+        editSession(onFailure = { loadSessionTracks(session) }) { api.moveInPlaylist(session.id, from, to) }
+    }
+
+    /**
+     * Removes the session's track at [index]. Spotify only removes all occurrences of a track, so the
+     * other occurrences of a track that is in the session more than once are added back at their positions.
+     */
+    fun removeFromSession(index: Int) = editSession {
+        val session = state.session ?: return@editSession
+        val tracks = state.sessionTracks ?: return@editSession
+        val uri = tracks.getOrNull(index)?.uri ?: return@editSession
+        val remaining = tracks.filterIndexed { i, _ -> i != index }
+        api.removeFromPlaylist(session.id, uri)
+        // Ascending, so each one is added at its final position
+        for (position in remaining.indices.filter { remaining[it].uri == uri }) {
+            api.addToPlaylist(session.id, listOf(uri), position)
+        }
+        state = state.copy(sessionTracks = remaining)
+    }
+
+    /** Runs a change of the session playlist after the previous ones, showing errors. */
+    private fun editSession(onFailure: () -> Unit = {}, edit: suspend () -> Unit) {
+        viewModelScope.launch {
+            sessionEditMutex.withLock {
+                try {
+                    edit()
+                    state = state.copy(error = null)
+                } catch (e: IOException) {
+                    state = state.copy(error = e.message)
+                    onFailure()
+                } catch (e: JSONException) {
+                    state = state.copy(error = e.message)
+                    onFailure()
+                }
+            }
         }
     }
 
@@ -347,6 +447,7 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
         const val STALE_QUEUE_RETRY_MS = 500L
         const val MAX_STALE_QUEUE_ATTEMPTS = 6
         const val QUEUE_RETRY_MS = 5_000L
+        const val PREVIEW_START_TIMEOUT_MS = 5_000L
         val OTHER_CONTEXT_PREFIXES = listOf(PLAYLIST_URI_PREFIX, "spotify:album:", "spotify:artist:", "spotify:show:")
     }
 }

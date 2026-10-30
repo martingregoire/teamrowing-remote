@@ -14,12 +14,25 @@ class HttpResponse(
 
 /** Performs a GET request on the IO dispatcher. Network failures are thrown as IOException. */
 suspend fun httpGet(url: String, headers: Map<String, String> = emptyMap()): HttpResponse =
+    httpRequest("GET", url, headers, body = null)
+
+/**
+ * Performs a request with [method], e.g. POST, and an optional JSON [body] on the IO dispatcher.
+ * Network failures are thrown as IOException.
+ */
+suspend fun httpRequest(method: String, url: String, headers: Map<String, String>, body: String?): HttpResponse =
     withContext(Dispatchers.IO) {
         val connection = URL(url).openConnection() as HttpURLConnection
         try {
+            connection.requestMethod = method
             connection.connectTimeout = TIMEOUT_MS
             connection.readTimeout = TIMEOUT_MS
             headers.forEach { (name, value) -> connection.setRequestProperty(name, value) }
+            if (body != null) {
+                connection.doOutput = true
+                connection.setRequestProperty("Content-Type", "application/json")
+                connection.outputStream.use { it.write(body.toByteArray()) }
+            }
             val status = connection.responseCode
             val stream = if (status < 400) connection.inputStream else connection.errorStream
             HttpResponse(

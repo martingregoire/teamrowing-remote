@@ -78,12 +78,18 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import de.gregoire.teamrowingremote.bpm.BpmEntry
 import de.gregoire.teamrowingremote.bpm.formatBpm
+import de.gregoire.teamrowingremote.prepare.SessionHistory
+import de.gregoire.teamrowingremote.prepare.checkSession
+import de.gregoire.teamrowingremote.prepare.sessionDate
+import de.gregoire.teamrowingremote.prepare.sessionName
 import de.gregoire.teamrowingremote.spotify.Playlist
 import de.gregoire.teamrowingremote.spotify.Track
 import de.gregoire.teamrowingremote.sync.SyncStatus
 import de.gregoire.teamrowingremote.sync.hasBluetoothPermission
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.text.Collator
+import java.time.LocalDate
 
 private val Background = Color.Black
 private val PrimaryText = Color.White
@@ -91,6 +97,9 @@ private val SecondaryText = Color(0xFFB3B3B3)
 private val Accent = Color(0xFFFFC107)
 private val Highlight = Color(0xFF2A2A2A)
 private val ErrorColor = Color(0xFFFF6B6B)
+
+/** The screens after choosing a session: playing it, preparing it, and adding tracks from the fundus. */
+private enum class Screen { REMOTE, PREPARE, FUNDUS }
 
 class MainActivity : ComponentActivity() {
 
@@ -118,17 +127,31 @@ class MainActivity : ComponentActivity() {
                 return@setContent
             }
             var choosingPlaylist by rememberSaveable { mutableStateOf(false) }
+            var screen by rememberSaveable { mutableStateOf(Screen.REMOTE) }
             if (choosingPlaylist || state.session == null) {
                 BackHandler(enabled = state.session != null) { choosingPlaylist = false }
                 LaunchedEffect(Unit) { viewModel.loadPlaylists() }
+                // The sessions' tracks, for their length; loaded for preparing them anyway
+                LaunchedEffect(state.playlists) { state.playlists?.let(viewModel.preparation::load) }
+                val bpmEntries by viewModel.bpmEntries.collectAsStateWithLifecycle()
+                val history = viewModel.preparation.history
+                val rowingTimes = remember(history, bpmEntries) { history?.rowingTimes(bpmEntries).orEmpty() }
                 PlaylistsScreen(
                     playlists = state.playlists,
+                    sessionDurations = rowingTimes,
                     error = state.error,
                     onSelect = {
                         viewModel.selectSession(it)
                         choosingPlaylist = false
                     },
                     onBack = if (state.session != null) ({ choosingPlaylist = false }) else null,
+                )
+            } else if (screen != Screen.REMOTE) {
+                PreparationScreens(
+                    showFundus = screen == Screen.FUNDUS,
+                    onShowFundus = { screen = Screen.FUNDUS },
+                    onBack = { screen = if (screen == Screen.FUNDUS) Screen.PREPARE else Screen.REMOTE },
+                    onChangeSession = { choosingPlaylist = true },
                 )
             } else {
                 val bpmEntries by viewModel.bpmEntries.collectAsStateWithLifecycle()
@@ -144,10 +167,79 @@ class MainActivity : ComponentActivity() {
                     onPlayTrack = viewModel::playSessionTrack,
                     onSeek = viewModel::seekTo,
                     onChangeSession = { choosingPlaylist = true },
+                    onPrepare = { screen = Screen.PREPARE },
                     onSaveTempo = viewModel::saveTempo,
                 )
             }
         }
+    }
+
+    /** Checking the session, and adding tracks to it from the fundus if [showFundus]. */
+    @Composable
+    private fun PreparationScreens(
+        showFundus: Boolean,
+        onShowFundus: () -> Unit,
+        onBack: () -> Unit,
+        onChangeSession: () -> Unit,
+    ) {
+        BackHandler(onBack = onBack)
+        val state = viewModel.state
+        val preparation = viewModel.preparation
+        val bpmEntries by viewModel.bpmEntries.collectAsStateWithLifecycle()
+        // Loads the past sessions and the fundus, again when a playlist changed
+        LaunchedEffect(state.playlists) { state.playlists?.let(preparation::load) }
+        LaunchedEffect(state.sessionTracks) { state.sessionTracks?.let(preparation::lookUpMissing) }
+        val error = state.error ?: preparation.error
+        val preview = TrackPreview(state, viewModel::playPreview, viewModel::pause, viewModel::resume, viewModel::seekTo)
+
+        if (showFundus) {
+            FundusScreen(
+                session = state.session,
+                sessionTracks = state.sessionTracks.orEmpty(),
+                playlists = state.playlists,
+                fundusIds = preparation.fundusIds,
+                fundusTracks = preparation.fundusTracks,
+                history = preparation.history,
+                bpmEntries = bpmEntries,
+                template = preparation.template,
+                error = error,
+                onBack = onBack,
+                onChangeFundus = preparation::setFundus,
+                onAdd = viewModel::addToSession,
+                onSaveTempo = viewModel::saveTempo,
+                preview = preview,
+            )
+            return
+        }
+        val tracks = state.sessionTracks
+        val history = preparation.history
+        val template = preparation.template
+        val check = remember(tracks, bpmEntries, template, history, state.session) {
+            if (tracks == null || history == null) {
+                null
+            } else {
+                // Only the sessions before this one count, e.g. when checking an old session
+                val date = state.session?.name?.let(::sessionDate)
+                checkSession(tracks, bpmEntries, template, history.before(date), isSession = date != null)
+            }
+        }
+        PrepareScreen(
+            session = state.session,
+            check = check,
+            bpmEntries = bpmEntries,
+            template = template,
+            error = error,
+            newSessionName = nextSessionName(history),
+            onBack = onBack,
+            onChangeSession = onChangeSession,
+            onNewSession = viewModel::createSession,
+            onAddTracks = onShowFundus,
+            onMove = viewModel::moveInSession,
+            onRemove = viewModel::removeFromSession,
+            onSaveTempo = viewModel::saveTempo,
+            onUpdateTemplate = preparation::updateTemplate,
+            preview = preview,
+        )
     }
 
     // The SDK recommends connecting only while the app is visible
@@ -220,6 +312,7 @@ fun RemoteScreen(
     onPlayTrack: (Int) -> Unit,
     onSeek: (Long) -> Unit,
     onChangeSession: () -> Unit,
+    onPrepare: () -> Unit,
     onSaveTempo: (uri: String, manualBpm: Double?, hidden: Boolean) -> Unit,
 ) {
     var editing by remember { mutableStateOf<Track?>(null) }
@@ -316,6 +409,9 @@ fun RemoteScreen(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
+            TextButton(onClick = onPrepare) {
+                Text(stringResource(R.string.prepare), color = Accent, fontSize = 18.sp)
+            }
             TextButton(onClick = onChangeSession) {
                 Text(stringResource(R.string.change_session), color = Accent, fontSize = 18.sp)
             }
@@ -371,7 +467,7 @@ fun RemoteScreen(
 // The customized slider track is still experimental in Material 3
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun PlaybackSlider(state: RemoteState, nowPlaying: NowPlaying, enabled: Boolean, onSeek: (Long) -> Unit) {
+internal fun PlaybackSlider(state: RemoteState, nowPlaying: NowPlaying, enabled: Boolean, onSeek: (Long) -> Unit) {
     var now by remember { mutableLongStateOf(SystemClock.elapsedRealtime()) }
     LaunchedEffect(state.positionUpdatedAt, state.isPaused) {
         while (!state.isPaused) {
@@ -493,7 +589,7 @@ private fun TrackRow(
 }
 
 /** The tempo to show for a track: none for "No tempo" tracks, "–" if unknown. */
-private fun tempoText(entry: BpmEntry?): String? = when {
+internal fun tempoText(entry: BpmEntry?): String? = when {
     entry?.hidden == true -> null
     else -> entry?.bpm?.let(::formatBpm) ?: "–"
 }
@@ -506,10 +602,14 @@ private val SyncStatus.label: Int
         SyncStatus.CONNECTED -> R.string.sync_connected
     }
 
-/** The user's playlists to choose the training session from. */
+/**
+ * The user's playlists to choose the training session from: the sessions, newest first, with their
+ * rowing time from [sessionDurations] once it's loaded, then the other playlists, the fundus, by name.
+ */
 @Composable
 fun PlaylistsScreen(
     playlists: List<Playlist>?,
+    sessionDurations: Map<String, Long>,
     error: String?,
     onSelect: (Playlist) -> Unit,
     onBack: (() -> Unit)?,
@@ -535,25 +635,45 @@ fun PlaylistsScreen(
             }
             playlists.isEmpty() -> Text(stringResource(R.string.no_playlists), color = SecondaryText, fontSize = 20.sp)
             else -> LazyColumn {
-                items(playlists, key = { it.id }) { playlist ->
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onSelect(playlist) }
-                            .padding(vertical = 14.dp)
-                    ) {
-                        Text(playlist.name, color = PrimaryText, fontSize = 22.sp)
+                val dated = playlists.associateWith { sessionDate(it.name) }
+                val sessions = playlists.filter { dated[it] != null }
+                    .sortedWith(compareByDescending<Playlist> { dated[it] }.thenBy { it.name })
+                val fundus = playlists.filter { dated[it] == null }.sortedWith(compareBy(Collator.getInstance()) { it.name })
+                items(sessions, key = { it.id }) { PlaylistRow(it, sessionDurations[it.id], onSelect) }
+                if (fundus.isNotEmpty()) {
+                    item(key = "fundus") {
                         Text(
-                            pluralStringResource(R.plurals.track_count, playlist.trackCount, playlist.trackCount),
+                            stringResource(R.string.fundus_header).uppercase(),
                             color = SecondaryText,
-                            fontSize = 16.sp,
+                            fontSize = 13.sp,
+                            letterSpacing = 1.sp,
+                            modifier = Modifier.padding(top = 24.dp, bottom = 4.dp),
                         )
                     }
-                    HorizontalDivider(color = Highlight)
                 }
+                items(fundus, key = { it.id }) { PlaylistRow(it, durationMs = null, onSelect) }
             }
         }
     }
+}
+
+@Composable
+private fun PlaylistRow(playlist: Playlist, durationMs: Long?, onSelect: (Playlist) -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onSelect(playlist) }
+            .padding(vertical = 14.dp)
+    ) {
+        Text(playlist.name, color = PrimaryText, fontSize = 22.sp)
+        Text(
+            pluralStringResource(R.plurals.track_count, playlist.trackCount, playlist.trackCount) +
+                durationMs?.let { " · " + formatDuration(it) }.orEmpty(),
+            color = SecondaryText,
+            fontSize = 16.sp,
+        )
+    }
+    HorizontalDivider(color = Highlight)
 }
 
 @Composable
@@ -577,8 +697,15 @@ private fun ControlButton(
 private const val PROGRESS_TICK_MS = 250L
 private const val RECENTER_DELAY_MS = 8_000L
 
+/** The name of the next session: a week after the newest one, or today if that's in the past. */
+private fun nextSessionName(history: SessionHistory?): String {
+    val today = LocalDate.now()
+    val next = history?.lastSession?.date?.plusWeeks(1)?.takeIf { it >= today } ?: today
+    return sessionName(next)
+}
+
 /** Formats milliseconds as m:ss. */
-private fun formatDuration(ms: Long): String {
+internal fun formatDuration(ms: Long): String {
     val seconds = ms / 1000
     return "%d:%02d".format(seconds / 60, seconds % 60)
 }
@@ -614,6 +741,7 @@ fun RemoteScreenPreview() {
         onPlayTrack = {},
         onSeek = {},
         onChangeSession = {},
+        onPrepare = {},
         onSaveTempo = { _, _, _ -> },
     )
 }

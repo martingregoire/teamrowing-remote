@@ -1,6 +1,8 @@
 package de.gregoire.teamrowingremote.spotify
 
+import de.gregoire.teamrowingremote.net.HttpResponse
 import de.gregoire.teamrowingremote.net.httpGet
+import de.gregoire.teamrowingremote.net.httpRequest
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
@@ -12,12 +14,22 @@ data class Track(
     val artists: String,
     val durationMs: Long,
     val isrc: String? = null,
-)
+) {
+    /** The Spotify track ID, or null for local files and podcast episodes. */
+    val id: String?
+        get() = uri.removePrefix(TRACK_URI_PREFIX).takeIf { uri.startsWith(TRACK_URI_PREFIX) }
+
+    private companion object {
+        const val TRACK_URI_PREFIX = "spotify:track:"
+    }
+}
 
 data class Playlist(
     val id: String,
     val name: String,
     val trackCount: Int,
+    /** Changes with every change of the playlist, to reuse its tracks loaded before; null if unknown. */
+    val snapshotId: String? = null,
 ) {
     val uri: String
         get() = PLAYLIST_URI_PREFIX + id
@@ -35,7 +47,10 @@ class SpotifyApiException(
     message: String,
 ) : IOException(message)
 
-/** Read-only access to the Spotify Web API for the logged-in user; playback is controlled with [SpotifyRemote]. */
+/**
+ * Access to the Spotify Web API for the logged-in user: reading playlists and the queue, and changing the
+ * user's own playlists while preparing sessions. Playback is controlled with [SpotifyRemote].
+ */
 class SpotifyApi(private val auth: SpotifyAuth) {
 
     private var userId: String? = null
@@ -50,8 +65,40 @@ class SpotifyApi(private val auth: SpotifyAuth) {
                     id = it.getString("id"),
                     name = it.getString("name"),
                     trackCount = it.optJSONObject("items")?.optInt("total") ?: 0,
+                    snapshotId = it.optString("snapshot_id").takeIf { id -> id.isNotEmpty() },
                 )
             }
+    }
+
+    /** Creates a private playlist for the user, e.g. a new training session. */
+    suspend fun createPlaylist(name: String): Playlist {
+        val json = requireNotNull(send("POST", "/me/playlists", JSONObject().put("name", name).put("public", false)))
+        return Playlist(
+            id = json.getString("id"),
+            name = json.getString("name"),
+            trackCount = 0,
+            snapshotId = json.optString("snapshot_id").takeIf { it.isNotEmpty() },
+        )
+    }
+
+    /** Adds tracks to a playlist, at [position] or at its end. */
+    suspend fun addToPlaylist(playlistId: String, uris: List<String>, position: Int? = null) {
+        val body = JSONObject().put("uris", JSONArray(uris))
+        if (position != null) body.put("position", position)
+        send("POST", "/playlists/$playlistId/items", body)
+    }
+
+    /** Moves the track at [from] so that it ends up at [to], counted in the playlist before the move. */
+    suspend fun moveInPlaylist(playlistId: String, from: Int, to: Int) {
+        // Spotify inserts before the given position, which is counted with the moved track still in place
+        val insertBefore = if (to > from) to + 1 else to
+        send("PUT", "/playlists/$playlistId/items", JSONObject().put("range_start", from).put("insert_before", insertBefore))
+    }
+
+    /** Removes all occurrences of the track [uri] from a playlist; Spotify's call takes tracks, not positions. */
+    suspend fun removeFromPlaylist(playlistId: String, uri: String) {
+        val items = JSONArray().put(JSONObject().put("uri", uri))
+        send("DELETE", "/playlists/$playlistId/items", JSONObject().put("items", items))
     }
 
     /** The current track and the upcoming tracks, which the App Remote SDK doesn't provide. */
@@ -85,12 +132,22 @@ class SpotifyApi(private val auth: SpotifyAuth) {
      */
     private suspend fun get(pathOrUrl: String): JSONObject? {
         val url = if (pathOrUrl.startsWith("https://")) pathOrUrl else BASE_URL + pathOrUrl
-        var response = httpGet(url, authorization(auth.accessToken()))
-        if (response.status == HttpURLConnection.HTTP_UNAUTHORIZED) {
-            response = httpGet(url, authorization(auth.accessToken(forceRefresh = true)))
-        }
+        return parse(pathOrUrl, withFreshTokenOnUnauthorized { httpGet(url, it) })
+    }
+
+    /** Request with [method] and a JSON body, e.g. POST; otherwise like [get]. */
+    private suspend fun send(method: String, path: String, body: JSONObject): JSONObject? =
+        parse(path, withFreshTokenOnUnauthorized { httpRequest(method, BASE_URL + path, it, body.toString()) })
+
+    private suspend fun withFreshTokenOnUnauthorized(request: suspend (Map<String, String>) -> HttpResponse): HttpResponse {
+        val response = request(authorization(auth.accessToken()))
+        if (response.status != HttpURLConnection.HTTP_UNAUTHORIZED) return response
+        return request(authorization(auth.accessToken(forceRefresh = true)))
+    }
+
+    private fun parse(pathOrUrl: String, response: HttpResponse): JSONObject? {
         return when (response.status) {
-            HttpURLConnection.HTTP_OK -> JSONObject(response.body)
+            HttpURLConnection.HTTP_OK, HttpURLConnection.HTTP_CREATED -> JSONObject(response.body)
             HttpURLConnection.HTTP_NO_CONTENT -> null
             else -> throw SpotifyApiException(
                 response.status,

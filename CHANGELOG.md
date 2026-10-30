@@ -7,6 +7,23 @@ All notable changes to this app are documented in this file. The format is based
 
 ## [Unreleased]
 
+### Added
+
+- Session preparation: checks a session's length, tempos and the tracks' last use against a
+  template that can be changed, with a tempo chart, and puts it together from fundus playlists.
+  "No tempo" tracks count as stretching, not as rowing time. New sessions can be created in the
+  app.
+- BPM lookups of session and fundus tracks on the phone, synced to the display app.
+- Listening to fundus tracks from their middle before adding them, and measuring a track's tempo by
+  tapping along in the tempo editor.
+
+### Changed
+
+- The tempo editor suggests a rowing tempo from the song's BPM for tracks without one.
+- The login asks for the permission to change playlists, so the app asks to log in again once.
+- The session list shows the sessions first, newest first, with their rowing time, then the other
+  playlists under "Fundus", by name.
+
 ## [1.1.1] - 2026-10-28
 
 It works with teamrowing-display 1.0.0 and later.

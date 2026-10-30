@@ -43,6 +43,11 @@ class SpotifyRemote private constructor(private val appRemote: SpotifyAppRemote)
         appRemote.playerApi.skipToIndex(uri, index)
     }
 
+    /** Plays the track [uri] on its own, e.g. to listen to it before adding it to a playlist. */
+    fun play(uri: String) {
+        appRemote.playerApi.play(uri)
+    }
+
     fun setShuffle(enabled: Boolean) {
         appRemote.playerApi.setShuffle(enabled)
     }
