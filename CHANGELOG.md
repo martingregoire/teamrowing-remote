@@ -21,6 +21,8 @@ All notable changes to this app are documented in this file. The format is based
 
 - The tempo editor suggests a rowing tempo from the song's BPM for tracks without one.
 - The login asks for the permission to change playlists, so the app asks to log in again once.
+- The session list shows the sessions first, newest first, with their rowing time, then the other
+  playlists under "Fundus", by name.
 
 ## [1.1.1] - 2026-10-28
 
