@@ -88,6 +88,7 @@ import de.gregoire.teamrowingremote.sync.SyncStatus
 import de.gregoire.teamrowingremote.sync.hasBluetoothPermission
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.text.Collator
 import java.time.LocalDate
 
 private val Background = Color.Black
@@ -212,7 +213,8 @@ class MainActivity : ComponentActivity() {
                 null
             } else {
                 // Only the sessions before this one count, e.g. when checking an old session
-                checkSession(tracks, bpmEntries, template, history.before(state.session?.name?.let(::sessionDate)))
+                val date = state.session?.name?.let(::sessionDate)
+                checkSession(tracks, bpmEntries, template, history.before(date), isSession = date != null)
             }
         }
         PrepareScreen(
@@ -594,7 +596,10 @@ private val SyncStatus.label: Int
         SyncStatus.CONNECTED -> R.string.sync_connected
     }
 
-/** The user's playlists to choose the training session from. */
+/**
+ * The user's playlists to choose the training session from: the sessions, newest first, then the
+ * other playlists, the fundus, by name.
+ */
 @Composable
 fun PlaylistsScreen(
     playlists: List<Playlist>?,
@@ -623,25 +628,44 @@ fun PlaylistsScreen(
             }
             playlists.isEmpty() -> Text(stringResource(R.string.no_playlists), color = SecondaryText, fontSize = 20.sp)
             else -> LazyColumn {
-                items(playlists, key = { it.id }) { playlist ->
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onSelect(playlist) }
-                            .padding(vertical = 14.dp)
-                    ) {
-                        Text(playlist.name, color = PrimaryText, fontSize = 22.sp)
+                val dated = playlists.associateWith { sessionDate(it.name) }
+                val sessions = playlists.filter { dated[it] != null }
+                    .sortedWith(compareByDescending<Playlist> { dated[it] }.thenBy { it.name })
+                val fundus = playlists.filter { dated[it] == null }.sortedWith(compareBy(Collator.getInstance()) { it.name })
+                items(sessions, key = { it.id }) { PlaylistRow(it, onSelect) }
+                if (fundus.isNotEmpty()) {
+                    item(key = "fundus") {
                         Text(
-                            pluralStringResource(R.plurals.track_count, playlist.trackCount, playlist.trackCount),
+                            stringResource(R.string.fundus_header).uppercase(),
                             color = SecondaryText,
-                            fontSize = 16.sp,
+                            fontSize = 13.sp,
+                            letterSpacing = 1.sp,
+                            modifier = Modifier.padding(top = 24.dp, bottom = 4.dp),
                         )
                     }
-                    HorizontalDivider(color = Highlight)
                 }
+                items(fundus, key = { it.id }) { PlaylistRow(it, onSelect) }
             }
         }
     }
+}
+
+@Composable
+private fun PlaylistRow(playlist: Playlist, onSelect: (Playlist) -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onSelect(playlist) }
+            .padding(vertical = 14.dp)
+    ) {
+        Text(playlist.name, color = PrimaryText, fontSize = 22.sp)
+        Text(
+            pluralStringResource(R.plurals.track_count, playlist.trackCount, playlist.trackCount),
+            color = SecondaryText,
+            fontSize = 16.sp,
+        )
+    }
+    HorizontalDivider(color = Highlight)
 }
 
 @Composable

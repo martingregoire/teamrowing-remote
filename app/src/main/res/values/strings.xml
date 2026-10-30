@@ -87,6 +87,7 @@
     <string name="template_reset">Reset to defaults</string>
     <string name="fundus_title">Add tracks</string>
     <string name="fundus_choose">Fundus playlists</string>
+    <string name="fundus_header">Fundus</string>
     <string name="fundus_none">Choose one or more playlists as the fundus to add tracks from.</string>
     <string name="fundus_no_playlists">No other playlists found. Create fundus playlists in Spotify, e.g. \"Fundus easy\".</string>
     <plurals name="fundus_count">

@@ -108,6 +108,8 @@ data class SessionCheck(
     val tracks: List<CheckedTrack>,
     val template: SessionTemplate,
     val lastSession: PastSession?,
+    /** False for other playlists, e.g. the fundus, which have no length or sections to check. */
+    val isSession: Boolean = true,
 ) {
     /** The rowing time, without stretching. */
     val totalMs: Long = tracks.filter { it.section != Section.STRETCHING }.sumOf { it.track.durationMs }
@@ -129,13 +131,16 @@ data class SessionCheck(
 
 /**
  * Checks a session's [tracks] against the [template], with tempos from [entries] and the [history] of
- * the sessions before it. Breaking a rule is only pointed out, never prevented.
+ * the sessions before it. Breaking a rule is only pointed out, never prevented. Other playlists than
+ * sessions, e.g. the fundus, have no order, so the rules about a track's position aren't checked unless
+ * [isSession].
  */
 fun checkSession(
     tracks: List<Track>,
     entries: Map<String, BpmEntry>,
     template: SessionTemplate,
     history: SessionHistory,
+    isSession: Boolean = true,
 ): SessionCheck {
     val tempos = tracks.map { rowingTempo(entries[it.uri]) }
     // Stretching ("No tempo") tracks don't count as rowing time, usually at the end of the session
@@ -164,10 +169,11 @@ fun checkSession(
                 intensity = template.intensity(tempo.perMinute)
                 when {
                     intensity == Intensity.SLOW -> issues += TrackIssue.TooSlow
+                    !isSession -> Unit
                     intensity == Intensity.HARD && section != Section.MAIN -> issues += TrackIssue.HardIn(section)
                     intensity == Intensity.HARD && previousHard -> issues += TrackIssue.HardAfterHard
                 }
-                previousTempo?.let { previous ->
+                if (isSession) previousTempo?.let { previous ->
                     val step = abs(tempo.perMinute - previous)
                     if (step > template.maxStep) issues += TrackIssue.LargeStep(step)
                 }
@@ -198,7 +204,7 @@ fun checkSession(
             lastUsed = history.lastUsed(track.uri),
         ).also { if (section != Section.STRETCHING) startMs += track.durationMs }
     }
-    return SessionCheck(checked, template, history.lastSession)
+    return SessionCheck(checked, template, history.lastSession, isSession)
 }
 
 const val MINUTE_MS = 60_000L

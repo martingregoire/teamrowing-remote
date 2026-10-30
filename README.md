@@ -12,8 +12,10 @@ which shows the current and next track with their tempo on a tablet for the part
 
 - **Controls:** the current track, pushed live by the Spotify app, with previous, play/pause and
   next, and a progress bar to seek within the track.
-- **Sessions:** each of the trainer's own Spotify playlists is a training session. The chosen
-  session is remembered, and a playlist started in the Spotify app is picked up automatically.
+- **Sessions:** each of the trainer's own Spotify playlists can be played as a training session.
+  The list shows the sessions (see below) first, newest first, then the other playlists, the
+  fundus, by name. The chosen session is remembered, and a playlist started in the Spotify app is
+  picked up automatically.
 - **Tempo:** each track's tempo (strokes per minute) next to the current track and in the session
   list, as prepared in the display app. Tracks marked "No tempo" show none, unknown ones "–".
 - **Tempo correction:** tapping a tempo opens a bottom sheet to type a new value, step it by ±1,
@@ -42,7 +44,8 @@ from the fundus. All rules only give hints, nothing is prevented.
 
 - **Sessions** are the trainer's own playlists named `TR` and their date, e.g. `TR 28.10.2026`.
   "New" creates one, named a week after the newest session by default. The sessions before the
-  prepared one are its history.
+  prepared one are its history. Other playlists, such as the fundus, can be prepared too: as they
+  have no order, only the tracks themselves are checked, without length, chart and sections.
 - **Length:** the rowing time against the target, 45 minutes ± 2 by default. "No tempo" tracks
   are stretching, usually at the end: they don't count, and are shown with their own length.
 - **Tempo chart:** the tracks as bars over time, as high as their tempo, on the easy and hard

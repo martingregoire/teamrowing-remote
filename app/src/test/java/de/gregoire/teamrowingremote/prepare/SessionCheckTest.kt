@@ -19,12 +19,12 @@ class SessionCheckTest {
         Track("spotify:track:$id", "Track $id", "Artist", (minutes * MINUTE_MS).toLong())
 
     /** Tracks with the given rowing tempos, 4 minutes each; null for "No tempo". */
-    private fun check(vararg tempos: Double?, history: SessionHistory = noHistory): SessionCheck {
+    private fun check(vararg tempos: Double?, history: SessionHistory = noHistory, isSession: Boolean = true): SessionCheck {
         val tracks = tempos.indices.map { track(it) }
         val entries = tracks.zip(tempos.toList()).associate { (track, tempo) ->
             track.uri to if (tempo == null) BpmEntry(hidden = true) else BpmEntry(tempo * 4, manualBpm = tempo)
         }
-        return checkSession(tracks, entries, template, history)
+        return checkSession(tracks, entries, template, history, isSession)
     }
 
     @Test
@@ -47,6 +47,12 @@ class SessionCheckTest {
         assertEquals(listOf(TrackIssue.HardAfterHard), issues[3])
         assertEquals(listOf(TrackIssue.LargeStep(5.0)), issues[4])
         assertEquals(listOf(TrackIssue.TooSlow), issues[5])
+    }
+
+    @Test
+    fun onlyPointsOutTheTracksThemselvesInOtherPlaylists() {
+        val result = check(24.0, 20.0, 24.0, 26.0, 21.0, 18.0, isSession = false)
+        assertEquals(List(5) { emptyList<TrackIssue>() } + listOf(listOf(TrackIssue.TooSlow)), result.tracks.map { it.issues })
     }
 
     @Test

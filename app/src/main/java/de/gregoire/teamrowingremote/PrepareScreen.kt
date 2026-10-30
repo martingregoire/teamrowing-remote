@@ -219,7 +219,7 @@ fun PrepareScreen(
             item(key = "overview") {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Summary(check)
-                    TempoChart(check, Modifier.fillMaxWidth().height(140.dp))
+                    if (check.isSession) TempoChart(check, Modifier.fillMaxWidth().height(140.dp))
                     Button(
                         onClick = onAddTracks,
                         colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Color.Black),
@@ -237,7 +237,7 @@ fun PrepareScreen(
             // A drag that started before the session changed is left for the new list
             (dragged?.takeIf { it.size == rows.size } ?: rows).forEachIndexed { index, row ->
                 val section = rows[index].checked.section
-                if (index == 0 || rows[index - 1].checked.section != section) {
+                if (check.isSession && (index == 0 || rows[index - 1].checked.section != section)) {
                     item(key = "section:$index") { SectionHeader(section) }
                 }
                 item(key = row.key) {
@@ -294,40 +294,54 @@ fun PrepareScreen(
 /** A track of the session, with a key for the list that stays with it while it's dragged. */
 private class SessionRow(val key: String, val checked: CheckedTrack)
 
-/** The session's length against the template, and how many tracks need attention. */
+/**
+ * The session's length against the template, or the tracks and their length for other playlists, and
+ * how many tracks need attention.
+ */
 @Composable
 private fun Summary(check: SessionCheck) {
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Row(verticalAlignment = Alignment.Bottom) {
+        // Other playlists, e.g. the fundus, have no length to keep
+        if (!check.isSession) {
             Text(
-                stringResource(
-                    R.string.session_length,
-                    formatDuration(check.totalMs),
-                    formatDuration(check.template.lengthMinutes * MINUTE_MS),
-                ),
-                color = if (check.lengthOk) PrimaryText else ErrorColor,
+                pluralStringResource(R.plurals.track_count, check.tracks.size, check.tracks.size) +
+                    " · " + formatDuration(check.totalMs + check.stretchingMs),
+                color = PrimaryText,
                 fontSize = 22.sp,
                 fontWeight = FontWeight.SemiBold,
             )
-            if (check.stretchingMs > 0) {
-                Text(
-                    stringResource(R.string.stretching_length, formatDuration(check.stretchingMs)),
-                    color = SecondaryText,
-                    fontSize = 16.sp,
-                    modifier = Modifier.padding(start = 12.dp, bottom = 2.dp),
-                )
-            }
-            if (!check.lengthOk) {
-                val difference = formatDuration(abs(check.lengthDifferenceMs))
+        } else {
+            Row(verticalAlignment = Alignment.Bottom) {
                 Text(
                     stringResource(
-                        if (check.lengthDifferenceMs > 0) R.string.length_too_long else R.string.length_too_short,
-                        difference,
+                        R.string.session_length,
+                        formatDuration(check.totalMs),
+                        formatDuration(check.template.lengthMinutes * MINUTE_MS),
                     ),
-                    color = ErrorColor,
-                    fontSize = 16.sp,
-                    modifier = Modifier.padding(start = 12.dp, bottom = 2.dp),
+                    color = if (check.lengthOk) PrimaryText else ErrorColor,
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.SemiBold,
                 )
+                if (check.stretchingMs > 0) {
+                    Text(
+                        stringResource(R.string.stretching_length, formatDuration(check.stretchingMs)),
+                        color = SecondaryText,
+                        fontSize = 16.sp,
+                        modifier = Modifier.padding(start = 12.dp, bottom = 2.dp),
+                    )
+                }
+                if (!check.lengthOk) {
+                    val difference = formatDuration(abs(check.lengthDifferenceMs))
+                    Text(
+                        stringResource(
+                            if (check.lengthDifferenceMs > 0) R.string.length_too_long else R.string.length_too_short,
+                            difference,
+                        ),
+                        color = ErrorColor,
+                        fontSize = 16.sp,
+                        modifier = Modifier.padding(start = 12.dp, bottom = 2.dp),
+                    )
+                }
             }
         }
         val parts = buildList {
