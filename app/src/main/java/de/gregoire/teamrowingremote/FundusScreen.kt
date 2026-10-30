@@ -69,11 +69,13 @@ private enum class TempoFilter(val label: Int) {
 private enum class FundusOrder(val label: Int) {
     TEMPO(R.string.sort_tempo),
     UNUSED(R.string.sort_unused),
+    LENGTH(R.string.sort_length),
 }
 
 /**
  * The tracks of the fundus playlists chosen by the trainer, to add to the session: with their tempo
- * and when they were last used, filtered by tempo and sorted by tempo or by how long they weren't used.
+ * and when they were last used, filtered by tempo and sorted by tempo, by how long they weren't used
+ * or by length.
  */
 @Composable
 fun FundusScreen(
@@ -148,6 +150,8 @@ fun FundusScreen(
                     FundusOrder.TEMPO -> rows.sortedBy { (it.tempo as? RowingTempo.Strokes)?.perMinute ?: Double.MAX_VALUE }
                     // Never used first, then the ones used longest ago
                     FundusOrder.UNUSED -> rows.sortedBy { it.lastUsedDate ?: LocalDate.MIN }
+                    // Shortest first
+                    FundusOrder.LENGTH -> rows.sortedBy { it.track.durationMs }
                 }
             }
         // One list for the choices and the tracks: it keeps its scroll position while tracks are loaded,

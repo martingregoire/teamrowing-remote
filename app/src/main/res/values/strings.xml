@@ -101,4 +101,5 @@
     <string name="filter_hide_last_session">Hide last session</string>
     <string name="sort_tempo">By tempo</string>
     <string name="sort_unused">Unused longest</string>
+    <string name="sort_length">By length</string>
 </resources>

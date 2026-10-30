@@ -63,8 +63,9 @@ from the fundus. All rules only give hints, nothing is prevented.
   syncs them to the display app.
 - **Adding tracks:** "Add tracks" lists the tracks of the fundus, the playlists chosen by name
   (all playlists except the sessions), with their tempo and last use. They can be filtered by
-  easy, hard or without tempo, hide the tracks of the last session, and be sorted by tempo or by
-  the time since they were last used. "+" adds a track at the end of the session.
+  easy, hard or without tempo, hide the tracks of the last session, and be sorted by tempo, by
+  the time since they were last used or by length (shortest first). "+" adds a track at the end
+  of the session.
 
 ## How it works
 
