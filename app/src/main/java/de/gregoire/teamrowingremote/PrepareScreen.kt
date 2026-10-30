@@ -37,6 +37,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -152,12 +153,15 @@ fun PrepareScreen(
         val occurrences = mutableMapOf<String, Int>()
         check?.tracks.orEmpty().map { SessionRow("${it.track.uri}#${occurrences.merge(it.track.uri, 1, Int::plus)}", it) }
     }
+    // The drag callbacks may outlive the composition they were created in, so they read the rows from here
+    val currentRows by rememberUpdatedState(rows)
+    val currentOnMove by rememberUpdatedState(onMove)
     // The order while a track is dragged; the move reaches the session when it's dropped
     var dragged by remember { mutableStateOf<List<SessionRow>?>(null) }
-    var dragStart by remember { mutableStateOf<SessionRow?>(null) }
+    var draggedKey by remember { mutableStateOf<String?>(null) }
     val listState = rememberLazyListState()
     val reorderState = rememberReorderableLazyListState(listState) { from, to ->
-        val order = (dragged ?: rows).toMutableList()
+        val order = (dragged ?: currentRows).toMutableList()
         val fromIndex = order.indexOfFirst { it.key == from.key }
         val toIndex = order.indexOfFirst { it.key == to.key }
         if (fromIndex >= 0 && toIndex >= 0) {
@@ -260,14 +264,14 @@ fun PrepareScreen(
                                             .draggableHandle(
                                                 onDragStarted = {
                                                     selectedIndex = null
-                                                    dragStart = row
+                                                    draggedKey = row.key
                                                 },
                                                 onDragStopped = {
-                                                    val from = rows.indexOf(dragStart)
-                                                    val to = dragged?.indexOf(dragStart) ?: from
+                                                    val from = currentRows.indexOfFirst { it.key == draggedKey }
+                                                    val to = dragged?.indexOfFirst { it.key == draggedKey } ?: from
                                                     dragged = null
-                                                    dragStart = null
-                                                    if (from >= 0 && to >= 0 && from != to) onMove(from, to)
+                                                    draggedKey = null
+                                                    if (from >= 0 && to >= 0 && from != to) currentOnMove(from, to)
                                                 },
                                             )
                                             .size(48.dp)
