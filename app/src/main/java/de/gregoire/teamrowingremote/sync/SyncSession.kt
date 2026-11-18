@@ -64,7 +64,20 @@ data class QueueUpdate(
     val upcoming: List<Track>,
 )
 
-/** Playback and queue updates a sync session sends to or receives from the other app. */
+/** A track of the session playlist, as far as the display app needs it for its session graph. */
+data class SessionTrack(val uri: String, val durationMs: Long)
+
+/**
+ * The tracks of the selected session playlist in their order, which the remote app sends to the
+ * display app for its session graph.
+ */
+data class SessionUpdate(
+    /** The session playlist, e.g. `spotify:playlist:…`; the graph is only shown while it's played. */
+    val playlistUri: String,
+    val tracks: List<SessionTrack>,
+)
+
+/** Playback, queue and session updates a sync session sends to or receives from the other app. */
 interface PlaybackSyncPeer {
     /** Updates to send; only the remote app has any. */
     val outgoing: Flow<PlaybackUpdate>
@@ -72,15 +85,21 @@ interface PlaybackSyncPeer {
     /** Queue updates to send; only the remote app has any. */
     val outgoingQueues: Flow<QueueUpdate>
 
+    /** Session updates to send; only the remote app has any. */
+    val outgoingSessions: Flow<SessionUpdate>
+
     fun received(update: PlaybackUpdate)
 
     fun receivedQueue(update: QueueUpdate)
+
+    fun receivedSession(update: SessionUpdate)
 }
 
 sealed interface SyncMessage {
     data class Entries(val entries: Map<String, BpmEntry>) : SyncMessage
     data class Playback(val update: PlaybackUpdate) : SyncMessage
     data class Queue(val update: QueueUpdate) : SyncMessage
+    data class Session(val update: SessionUpdate) : SyncMessage
 }
 
 object SyncProtocol {
@@ -91,7 +110,7 @@ object SyncProtocol {
 
     /**
      * One message per line, either `{"version":1,"entries":{<track URI>:{…}}}`,
-     * `{"version":1,"playback":{…}}` or `{"version":1,"queue":{…}}`. Apps that don't know a message
+     * `{"version":1,"playback":{…}}`, `{"version":1,"queue":{…}}` or `{"version":1,"session":{…}}`. Apps that don't know a message
      * type ignore it.
      */
     fun encode(message: SyncMessage): String {
@@ -100,6 +119,7 @@ object SyncProtocol {
             is SyncMessage.Entries -> json.put("entries", bpmEntriesToJson(message.entries))
             is SyncMessage.Playback -> json.put("playback", playbackToJson(message.update))
             is SyncMessage.Queue -> json.put("queue", queueToJson(message.update))
+            is SyncMessage.Session -> json.put("session", sessionToJson(message.update))
         }
         return json.toString()
     }
@@ -112,6 +132,7 @@ object SyncProtocol {
             json.has("entries") -> SyncMessage.Entries(bpmEntriesFromJson(json.getJSONObject("entries")))
             json.has("playback") -> SyncMessage.Playback(playbackFromJson(json.getJSONObject("playback")))
             json.has("queue") -> SyncMessage.Queue(queueFromJson(json.getJSONObject("queue")))
+            json.has("session") -> SyncMessage.Session(sessionFromJson(json.getJSONObject("session")))
             else -> null
         }
     } catch (e: JSONException) {
@@ -170,6 +191,25 @@ object SyncProtocol {
             },
         )
     }
+
+    private fun sessionToJson(update: SessionUpdate): JSONObject {
+        val tracks = JSONArray()
+        for (track in update.tracks) {
+            tracks.put(JSONObject().put("uri", track.uri).put("durationMs", track.durationMs))
+        }
+        return JSONObject().put("playlistUri", update.playlistUri).put("tracks", tracks)
+    }
+
+    private fun sessionFromJson(json: JSONObject): SessionUpdate {
+        val tracks = json.getJSONArray("tracks")
+        return SessionUpdate(
+            playlistUri = json.getString("playlistUri"),
+            tracks = (0 until tracks.length()).map { index ->
+                val track = tracks.getJSONObject(index)
+                SessionTrack(uri = track.getString("uri"), durationMs = track.optLong("durationMs"))
+            },
+        )
+    }
 }
 
 /** Suspends until cancelled, then closes [closeable], e.g. to interrupt a blocking socket call elsewhere. */
@@ -183,7 +223,7 @@ suspend fun closeOnCancellation(closeable: Closeable) {
 
 /**
  * Syncs over a connected socket: both sides first send all their BPM entries, then each local
- * change as it happens; the remote app also sends each playback change and Spotify's queue. Returns when the other side
+ * change as it happens; the remote app also sends each playback change, Spotify's queue and the session's tracks. Returns when the other side
  * disconnects; throws IOException on errors.
  */
 class SyncSession(
@@ -209,6 +249,9 @@ class SyncSession(
         val queueSender = launch {
             playback.outgoingQueues.collect { send(writer, SyncMessage.Queue(it)) }
         }
+        val sessionSender = launch {
+            playback.outgoingSessions.collect { send(writer, SyncMessage.Session(it)) }
+        }
         send(writer, SyncMessage.Entries(store.snapshot()))
 
         withContext(Dispatchers.IO) {
@@ -219,6 +262,7 @@ class SyncSession(
                     is SyncMessage.Entries -> store.merge(message.entries)
                     is SyncMessage.Playback -> playback.received(message.update)
                     is SyncMessage.Queue -> playback.receivedQueue(message.update)
+                    is SyncMessage.Session -> playback.receivedSession(message.update)
                     null -> Unit
                 }
             }
@@ -227,6 +271,7 @@ class SyncSession(
         entriesSender.cancel()
         playbackSender.cancel()
         queueSender.cancel()
+        sessionSender.cancel()
         closer.cancel()
     }
 

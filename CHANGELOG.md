@@ -7,6 +7,10 @@ All notable changes to this app are documented in this file. The format is based
 
 ## [Unreleased]
 
+### Added
+
+- The session's tracks are sent to the display app, for the session graph of teamrowing-display.
+
 ## [1.2.0] - 2026-10-30
 
 It works with teamrowing-display 1.0.0 and later.
