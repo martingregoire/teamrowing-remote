@@ -7,6 +7,10 @@ All notable changes to this app are documented in this file. The format is based
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-11-18
+
+It works with teamrowing-display 1.0.0 and later. The session graph needs teamrowing-display 1.2.0.
+
 ### Added
 
 - The session's tracks are sent to the display app, for the session graph of teamrowing-display.
@@ -77,7 +81,8 @@ The first version. It works with teamrowing-display 1.0.0.
 - Playback changes are sent to the display app over Bluetooth, so it shows them right away.
 - The screen stays on while the app is open.
 
-[Unreleased]: https://github.com/martingregoire/teamrowing-remote/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/martingregoire/teamrowing-remote/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/martingregoire/teamrowing-remote/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/martingregoire/teamrowing-remote/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/martingregoire/teamrowing-remote/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/martingregoire/teamrowing-remote/compare/v1.0.0...v1.1.0
