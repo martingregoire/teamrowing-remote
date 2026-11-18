@@ -24,6 +24,8 @@ import de.gregoire.teamrowingremote.sync.BluetoothSyncClient
 import de.gregoire.teamrowingremote.sync.PlaybackSyncPeer
 import de.gregoire.teamrowingremote.sync.PlaybackUpdate
 import de.gregoire.teamrowingremote.sync.QueueUpdate
+import de.gregoire.teamrowingremote.sync.SessionTrack
+import de.gregoire.teamrowingremote.sync.SessionUpdate
 import de.gregoire.teamrowingremote.sync.SyncStatus
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -89,14 +91,21 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
 
     /** Spotify's queue for the display app, which may not have internet access to fetch it. */
     private val queueUpdates = MutableStateFlow<QueueUpdate?>(null)
+
+    /** The session's tracks for the display app's session graph, sent again on each connection. */
+    private val sessionUpdates = MutableStateFlow<SessionUpdate?>(null)
     private val playbackPeer = object : PlaybackSyncPeer {
         override val outgoing: Flow<PlaybackUpdate> = playbackUpdates.filterNotNull()
 
         override val outgoingQueues: Flow<QueueUpdate> = queueUpdates.filterNotNull()
 
+        override val outgoingSessions: Flow<SessionUpdate> = sessionUpdates.filterNotNull()
+
         override fun received(update: PlaybackUpdate) = Unit
 
         override fun receivedQueue(update: QueueUpdate) = Unit
+
+        override fun receivedSession(update: SessionUpdate) = Unit
     }
     private val syncClient = BluetoothSyncClient(application, bpmStore, playbackPeer)
 
@@ -125,10 +134,11 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
 
     /**
      * Syncs the tempos with the display app over Bluetooth until cancelled, e.g. while the app is visible,
-     * and sends it the playback state and Spotify's queue.
+     * and sends it the playback state, Spotify's queue and the session's tracks.
      */
     suspend fun runSync() = coroutineScope {
         launch { pollQueue() }
+        launch { publishSession() }
         syncClient.run()
     }
 
@@ -372,6 +382,21 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
             contextUri = state.contextUri,
             positionAt = state.positionUpdatedAt,
         )
+    }
+
+    /**
+     * Keeps the session's tracks for the display app up to date: when another session is selected, its
+     * tracks are loaded, or it's changed while preparing it. The display app shows its graph only while
+     * this session is played.
+     */
+    private suspend fun publishSession() {
+        snapshotFlow { state.session?.uri to state.sessionTracks }
+            .collect { (uri, tracks) ->
+                if (uri == null || tracks == null) return@collect
+                val update = SessionUpdate(uri, tracks.map { SessionTrack(it.uri, it.durationMs) })
+                // A StateFlow drops equal values, so unchanged tracks aren't sent again
+                sessionUpdates.value = update
+            }
     }
 
     /**

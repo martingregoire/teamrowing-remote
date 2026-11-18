@@ -34,7 +34,8 @@ which shows the current and next track with their tempo on a tablet for the part
 - **Instant display updates:** while connected, the phone sends every track change, pause and seek
   to the display app, which shows it right away instead of at its next poll. It also sends
   Spotify's queue, without the autoplay tracks after the session, so the tablet shows the next
-  track without internet access.
+  track without internet access, and the session's tracks in their order, for the display app's
+  session graph.
 - The screen stays on while the app is open.
 
 ## Preparing sessions
@@ -85,7 +86,8 @@ from the fundus. All rules only give hints, nothing is prevented.
 - The tempos are synced with the display app over Bluetooth (RFCOMM): the remote connects to the
   display app on a paired computer, tablet or phone, starting with the last connected one, and
   retries every 10 seconds. It also sends the SDK's playback state on every change, and the queue
-  when the track changes and every 15 seconds. The protocol
+  when the track changes and every 15 seconds. It sends the session's tracks (URI and length) on
+  connecting, and whenever another session is selected or the session is changed. The protocol
   and the BPM entry format (`sync/SyncSession.kt`, `bpm/BpmEntry.kt`) are kept identical in both
   apps; see the display app's README.
 - The login also grants the SDK's `app-remote-control` permission. The SDK can't ask for it
